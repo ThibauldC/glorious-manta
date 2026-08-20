@@ -4,7 +4,7 @@
     <time datetime="{{ post.date | htmlDate }}">{{ post.date | readableDate }}</time>
     <div>
       <a class="post-link" href="{{ post.url }}">{{ post.data.title }}</a>
-      <div class="post-meta">{% for tag in post.data.tags %}<a class="tag" href="/tags/#{{ tag | slug }}">{{ tag }}</a>{% endfor %}</div>
+      <div class="post-meta">{% for tag in post.data.tags %}<a class="tag tag-{{ tag | slug }}" href="/tags/#{{ tag | slug }}">{{ tag }}</a>{% endfor %}</div>
     </div>
     <span class="arrow" aria-hidden="true">↗</span>
   </li>
