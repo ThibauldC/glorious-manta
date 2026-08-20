@@ -46,6 +46,21 @@ export default function (config) {
       a.localeCompare(b),
     ),
   );
+  config.addFilter("topicCounts", (posts) => {
+    const counts = {};
+    for (const tag of posts.flatMap((post) => post.data.tags || []))
+      counts[tag] = (counts[tag] || 0) + 1;
+    const ranked = Object.entries(counts).sort(
+      ([nameA, countA], [nameB, countB]) =>
+        countB - countA || nameA.localeCompare(nameB),
+    );
+    const max = ranked[0]?.[1] || 1;
+    return ranked.slice(0, 5).map(([name, count]) => ({
+      name,
+      count,
+      percentage: Math.round((count / max) * 100),
+    }));
+  });
 
   return {
     dir: { input: ".", output: "_site", includes: "_includes", data: "_data" },
