@@ -4,7 +4,7 @@ title: Tags
 permalink: /tags/index.html
 description: Browse posts by topic.
 ---
-<header class="page-header compact"><div class="eyebrow">Index</div><h1>Topics</h1><p>Follow a thread through the notes.</p></header>
+<header class="page-header compact"><div class="eyebrow">All tags</div><h1>Topics</h1><p>Find related posts by topic.</p></header>
 <div class="tag-cloud">
 {% for tag in collections.posts | allTags %}<a href="#{{ tag | slug }}">{{ tag }}</a>{% endfor %}
 </div>
