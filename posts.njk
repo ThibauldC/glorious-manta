@@ -1,0 +1,14 @@
+---
+layout: base.njk
+title: Posts
+permalink: /posts/index.html
+description: All technical posts by Thibauld Croonenborghs, listed by date and tag.
+---
+<header class="page-header">
+  <div class="eyebrow">Archive / {{ collections.posts | length }} notes</div>
+  <h1>Writing</h1>
+  <p>Experiments, fixes and field notes from modern data platforms.</p>
+</header>
+{% set posts = collections.posts %}
+{% include "post-list.njk" %}
+<p class="tag-route">Looking for a specific topic? <a href="/tags/">Browse all tags →</a></p>

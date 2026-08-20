@@ -1,0 +1,41 @@
+---
+layout: base.njk
+description: Practical writing on Microsoft Fabric, Spark, Python and modern data platforms.
+---
+<section class="hero">
+  <div class="hero-copy">
+    <div class="eyebrow"><span class="status-dot"></span> Data architect · Speaker · Builder</div>
+    <h1>Complex data systems,<br><em>made legible.</em></h1>
+    <p>Practical notes from building with Microsoft Fabric, Spark, Python and the modern data stack—without hiding the sharp edges.</p>
+    <div class="hero-actions">
+      <a class="button primary" href="/posts/">Read the notes <span aria-hidden="true">→</span></a>
+      <a class="button" href="/presentations/">Explore talks</a>
+    </div>
+  </div>
+  <div class="signal-card" aria-label="Topics covered on this site">
+    <div class="signal-top"><span>FIELD NOTES / 01</span><span class="live">LIVE</span></div>
+    <div class="signal-visual" aria-hidden="true">
+      <span style="--h:42%"></span><span style="--h:68%"></span><span style="--h:52%"></span><span style="--h:88%"></span><span style="--h:74%"></span><span style="--h:100%"></span><span style="--h:84%"></span>
+    </div>
+    <dl>
+      <div><dt>Focus</dt><dd>Data platforms</dd></div>
+      <div><dt>Current signal</dt><dd>Microsoft Fabric</dd></div>
+      <div><dt>Method</dt><dd>Learn → build → explain</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section class="section-heading">
+  <div><span class="section-number">01</span><h2>Latest writing</h2></div>
+  <a href="/tags/">Browse by tag →</a>
+</section>
+{% set posts = collections.posts %}
+{% include "post-list.njk" %}
+
+<section class="split-callout">
+  <div><span class="section-number">02 / SPEAKING</span><h2>Slides that work<br>beyond the stage.</h2></div>
+  <div>
+    <p>Interactive Slidev decks on Spark performance, data engineering and the tools that make hard systems easier to reason about.</p>
+    <a class="text-link" href="/presentations/">View presentations <span aria-hidden="true">↗</span></a>
+  </div>
+</section>
