@@ -6,7 +6,7 @@ description: Browse posts by topic.
 ---
 <header class="page-header compact"><div class="eyebrow">All tags</div><h1>Topics</h1><p>Find related posts by topic.</p></header>
 <div class="tag-cloud">
-{% for tag in collections.posts | allTags %}<a href="#{{ tag | slug }}">{{ tag }}</a>{% endfor %}
+{% for tag in collections.posts | allTags %}<a class="tag-{{ tag | slug }}" href="#{{ tag | slug }}">{{ tag }}</a>{% endfor %}
 </div>
 <div class="tag-sections">
 {% for tag in collections.posts | allTags %}

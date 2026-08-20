@@ -9,7 +9,7 @@ layout: base.njk
     <div class="article-byline">
       <time datetime="{{ date | htmlDate }}">{{ date | readableDate }}</time><span aria-hidden="true">·</span><span>{{ site.author }}</span>
     </div>
-    <div class="post-meta">{% for tag in tags %}<a class="tag" href="/tags/#{{ tag | slug }}">{{ tag }}</a>{% endfor %}</div>
+    <div class="post-meta">{% for tag in tags %}<a class="tag tag-{{ tag | slug }}" href="/tags/#{{ tag | slug }}">{{ tag }}</a>{% endfor %}</div>
   </header>
   <div class="prose">{{ content | safe }}</div>
   <footer class="article-footer">

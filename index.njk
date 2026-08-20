@@ -18,7 +18,7 @@ description: Notes on Microsoft Fabric, Spark, Python, and modern data platforms
     <div class="signal-top"><span>TOPICS</span><span class="live">{{ collections.posts | length }} POSTS</span></div>
     <div class="signal-visual" aria-label="Blog topics ranked by number of posts">
       {% for topic in topics %}
-      <a class="topic-column" href="/tags/#{{ topic.name | slug }}" title="{{ topic.name }}: {{ topic.count }} posts">
+      <a class="topic-column tag-{{ topic.name | slug }}" href="/tags/#{{ topic.name | slug }}" title="{{ topic.name }}: {{ topic.count }} posts">
         <strong>{{ topic.count }}</strong>
         <span class="topic-bar" style="--h:{{ topic.percentage }}%"></span>
         <small>{{ topic.name }}</small>
