@@ -12,15 +12,23 @@ description: Practical writing on Microsoft Fabric, Spark, Python and modern dat
       <a class="button" href="/presentations/">Explore talks</a>
     </div>
   </div>
-  <div class="signal-card" aria-label="Topics covered on this site">
-    <div class="signal-top"><span>FIELD NOTES / 01</span><span class="live">LIVE</span></div>
-    <div class="signal-visual" aria-hidden="true">
-      <span style="--h:42%"></span><span style="--h:68%"></span><span style="--h:52%"></span><span style="--h:88%"></span><span style="--h:74%"></span><span style="--h:100%"></span><span style="--h:84%"></span>
+  {% set topics = collections.posts | topicCounts %}
+  {% set allTopics = collections.posts | allTags %}
+  <div class="signal-card">
+    <div class="signal-top"><span>FIELD NOTES / TOPICS</span><span class="live">{{ collections.posts | length }} POSTS</span></div>
+    <div class="signal-visual" aria-label="Top blog topics by number of posts">
+      {% for topic in topics %}
+      <a class="topic-column" href="/tags/#{{ topic.name | slug }}" title="{{ topic.name }}: {{ topic.count }} posts">
+        <strong>{{ topic.count }}</strong>
+        <span class="topic-bar" style="--h:{{ topic.percentage }}%"></span>
+        <small>{{ topic.name }}</small>
+      </a>
+      {% endfor %}
     </div>
     <dl>
-      <div><dt>Focus</dt><dd>Data platforms</dd></div>
-      <div><dt>Current signal</dt><dd>Microsoft Fabric</dd></div>
-      <div><dt>Method</dt><dd>Learn → build → explain</dd></div>
+      <div><dt>Most covered</dt><dd>{{ topics[0].name }} · {{ topics[1].name }}</dd></div>
+      <div><dt>Published</dt><dd>{{ collections.posts | length }} field notes</dd></div>
+      <div><dt>Topic index</dt><dd>{{ allTopics | length }} tags</dd></div>
     </dl>
   </div>
 </section>
