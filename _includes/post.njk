@@ -4,7 +4,7 @@ layout: base.njk
 <article class="article">
   <header class="article-header">
     <a class="back-link" href="/posts/">← All posts</a>
-    <div class="eyebrow">{% if categories %}{{ categories[0] }}{% else %}Field note{% endif %}</div>
+    <div class="eyebrow">{% if categories %}{{ categories[0] }}{% else %}Post{% endif %}</div>
     <h1>{{ title }}</h1>
     <div class="article-byline">
       <time datetime="{{ date | htmlDate }}">{{ date | readableDate }}</time><span aria-hidden="true">·</span><span>{{ site.author }}</span>
@@ -13,7 +13,7 @@ layout: base.njk
   </header>
   <div class="prose">{{ content | safe }}</div>
   <footer class="article-footer">
-    <p>Found this useful?</p>
-    <a href="{{ site.linkedin }}">Continue the conversation on LinkedIn <span aria-hidden="true">↗</span></a>
+    <p>Questions or comments?</p>
+    <a href="{{ site.linkedin }}">Discuss it on LinkedIn <span aria-hidden="true">↗</span></a>
   </footer>
 </article>
