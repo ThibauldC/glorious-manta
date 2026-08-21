@@ -33,8 +33,12 @@ npm start
 
 ## Publish on Cloudflare Pages
 
-1. Create a Direct Upload Pages project named `glorious-manta` with `main` as its production branch.
-2. Add repository secrets `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. The token needs **Account → Cloudflare Pages → Edit**.
-3. Push. `main` publishes production; every other branch gets a Cloudflare preview deployment and branch alias.
+Connect this repository to a Pages project using the **Cloudflare Workers and Pages** GitHub App. Configure:
+
+- Production branch: `main`
+- Build command: `npm run build`
+- Output directory: `_site`
+
+Cloudflare then deploys `main` to production and connected branches as previews on push. No GitHub Actions or Cloudflare API-token secrets are required.
 
 Change the production URL in `_data/site.json` when attaching a custom domain.
