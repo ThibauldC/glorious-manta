@@ -1,0 +1,7 @@
+{
+  "name": "glorious-manta",
+  "compatibility_date": "2026-08-21",
+  "assets": {
+    "directory": "./_site"
+  }
+}

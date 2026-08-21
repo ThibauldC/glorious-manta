@@ -31,14 +31,15 @@ npm start
 
 `npm run build` writes the static site to `_site`.
 
-## Publish on Cloudflare Pages
+## Publish on Cloudflare Workers
 
-Connect this repository to a Pages project using the **Cloudflare Workers and Pages** GitHub App. Configure:
+Connect this repository to a Worker using the **Cloudflare Workers and Pages** GitHub App. Configure:
 
 - Production branch: `main`
 - Build command: `npm run build`
-- Output directory: `_site`
+- Deploy command: `npx wrangler deploy`
+- Non-production deploy command: `npx wrangler versions upload`
 
-Cloudflare then deploys `main` to production and connected branches as previews on push. No GitHub Actions or Cloudflare API-token secrets are required.
+`wrangler.jsonc` tells Wrangler to deploy `_site` as static assets. No GitHub Actions or Cloudflare API-token secrets are required.
 
 Change the production URL in `_data/site.json` when attaching a custom domain.
