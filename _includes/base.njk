@@ -9,6 +9,10 @@
   <title>{% if title %}{{ title }} · {% endif %}{{ site.title }}</title>
   <meta name="description" content="{{ description or site.description }}">
   <link rel="canonical" href="{{ site.url }}{{ page.url }}">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
   <meta property="og:title" content="{{ title or site.title }}">
   <meta property="og:description" content="{{ description or site.description }}">
   <meta property="og:type" content="{% if layout == 'post.njk' %}article{% else %}website{% endif %}">
@@ -24,9 +28,9 @@
         <span><strong>Thibauld</strong><small>Data notes</small></span>
       </a>
       <nav aria-label="Main navigation">
-        <a href="/posts/">Posts</a>
-        <a href="/presentations/">Presentations</a>
-        <a href="/biography/">Biography</a>
+        <a href="/posts/"{% if page.url == '/posts/' %} aria-current="page"{% endif %}>Posts</a>
+        <a href="/presentations/"{% if page.url == '/presentations/' %} aria-current="page"{% endif %}>Presentations</a>
+        <a href="/biography/"{% if page.url == '/biography/' %} aria-current="page"{% endif %}>Biography</a>
       </nav>
     </header>
 
