@@ -159,6 +159,18 @@ h1 em, h2 em { color: var(--accent); font-family: var(--serif); font-weight: 400
 }
 .tag:hover, .tag-cloud a:hover { border-color: var(--tag-base); background: var(--accent-soft); color: var(--ink); }
 
+/* Muted pigments keep topics distinct without competing with the oxide accent. */
+.tag-microsoft { --tag-base: #4f7280; }
+.tag-fabric { --tag-base: #75618d; }
+.tag-pipelines { --tag-base: #b35f3e; }
+.tag-python { --tag-base: #4f7a68; }
+.tag-powerbi { --tag-base: #9b7a2e; }
+.tag-powershell { --tag-base: #5a6f9b; }
+.tag-terraform { --tag-base: #89618a; }
+.tag-iac { --tag-base: #986a39; }
+.tag-security { --tag-base: #677544; }
+.tag-purview { --tag-base: #4c7971; }
+
 .arrow { padding-top: .1rem; color: var(--muted); font-size: 1.25rem; }
 .split-callout { display: grid; grid-template-columns: 1fr 1fr; gap: 5rem; margin: 8rem 0 3rem; padding: clamp(2rem, 5vw, 4rem); border-radius: 1.4rem; background: var(--ink); color: var(--paper); }
 .split-callout h2 { margin: 1rem 0 0; font-size: clamp(2.2rem, 4vw, 3.8rem); letter-spacing: -.05em; line-height: 1.02; }
