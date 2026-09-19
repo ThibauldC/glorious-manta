@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    const savedTheme = localStorage.getItem("theme");
+    document.documentElement.dataset.theme = savedTheme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  </script>
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f4f2ed" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#101615" media="(prefers-color-scheme: dark)">
@@ -25,19 +29,24 @@
     <header class="site-header">
       <a class="brand" href="/" aria-label="{{ site.title }}, home">
         <span class="brand-mark" aria-hidden="true">TC</span>
-        <span><strong>Thibauld</strong><small>Data notes</small></span>
+        <span><strong>Thibauld</strong><small>Field notes</small></span>
       </a>
-      <nav aria-label="Main navigation">
-        <a href="/posts/"{% if page.url == '/posts/' %} aria-current="page"{% endif %}>Posts</a>
-        <a href="/presentations/"{% if page.url == '/presentations/' %} aria-current="page"{% endif %}>Presentations</a>
-        <a href="/biography/"{% if page.url == '/biography/' %} aria-current="page"{% endif %}>Biography</a>
-      </nav>
+      <div class="header-actions">
+        <nav aria-label="Main navigation">
+          <a href="/posts/"{% if page.url == '/posts/' %} aria-current="page"{% endif %}>Posts</a>
+          <a href="/presentations/"{% if page.url == '/presentations/' %} aria-current="page"{% endif %}>Presentations</a>
+          <a href="/biography/"{% if page.url == '/biography/' %} aria-current="page"{% endif %}>Biography</a>
+        </nav>
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme">
+          <span aria-hidden="true">◐</span>
+        </button>
+      </div>
     </header>
 
     <main id="content">{{ content | safe }}</main>
 
     <footer class="site-footer">
-      <div><strong>{{ site.author }}</strong><p>I build data platforms and share what holds up in production.</p></div>
+      <div><strong>{{ site.author }}</strong><p>I write about data platform work: what held up and what did not.</p></div>
       <div class="footer-links">
         <a href="{{ site.github }}">GitHub</a>
         <a href="{{ site.linkedin }}">LinkedIn</a>
@@ -47,6 +56,32 @@
     </footer>
   </div>
 
+  <script>
+    const themeToggle = document.querySelector("[data-theme-toggle]");
+    const root = document.documentElement;
+    const systemTheme = matchMedia("(prefers-color-scheme: dark)");
+    const updateThemeToggle = () => {
+      const isDark = root.dataset.theme === "dark";
+      themeToggle.setAttribute("aria-label", `Switch to ${isDark ? "light" : "dark"} mode`);
+      themeToggle.setAttribute("aria-pressed", String(isDark));
+    };
+
+    themeToggle.addEventListener("click", () => {
+      const theme = root.dataset.theme === "dark" ? "light" : "dark";
+      root.dataset.theme = theme;
+      localStorage.setItem("theme", theme);
+      updateThemeToggle();
+    });
+
+    if (!localStorage.getItem("theme")) {
+      systemTheme.addEventListener("change", ({ matches }) => {
+        root.dataset.theme = matches ? "dark" : "light";
+        updateThemeToggle();
+      });
+    }
+
+    updateThemeToggle();
+  </script>
   <script type="module">
     if (document.querySelector('.mermaid')) {
       const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11.17.0/dist/mermaid.esm.min.mjs');
