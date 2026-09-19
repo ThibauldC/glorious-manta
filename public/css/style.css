@@ -129,7 +129,7 @@ h1 em, h2 em { color: var(--accent); font-family: var(--serif); font-weight: 400
 .signal-visual { position: relative; z-index: 1; display: flex; gap: 7px; height: 180px; padding: 1.4rem .1rem .8rem; border-bottom: 1px solid var(--line); }
 .topic-column { display: grid; flex: 1; grid-template-rows: 1rem 1fr auto; gap: .3rem; min-width: 0; color: var(--tag-base, var(--muted)); text-align: center; text-decoration: none; }
 .topic-column strong { color: var(--tag-base, var(--ink)); font: 700 .65rem/1 var(--mono); }
-.topic-column small { overflow: hidden; color: var(--tag-base, var(--muted)); font-size: .48rem; font-weight: 750; text-overflow: ellipsis; text-transform: uppercase; }
+.topic-column small { overflow: hidden; color: var(--tag-base, var(--muted)); font-size: .57rem; font-weight: 750; text-overflow: ellipsis; text-transform: uppercase; }
 .topic-bar { align-self: end; width: 100%; height: var(--h); border-radius: 3px 3px 0 0; background: var(--tag-base, var(--accent)); opacity: .82; }
 .topic-column:hover { color: var(--tag-base); }
 .topic-column:hover .topic-bar { opacity: 1; }
@@ -143,8 +143,8 @@ h1 em, h2 em { color: var(--accent); font-family: var(--serif); font-weight: 400
 .section-heading h2 { margin: 0; font-size: clamp(2rem, 4vw, 3.4rem); letter-spacing: -.045em; }
 .section-heading > a, .text-link { color: var(--muted); font-size: .83rem; font-weight: 700; }
 .post-list { margin: 0; padding: 0; border-top: 1px solid var(--line); list-style: none; }
-.post-list li { display: grid; grid-template-columns: 140px minmax(0, 1fr) auto; gap: 2rem; align-items: start; padding: 1.8rem .2rem; border-bottom: 1px solid var(--line); transition: padding .2s ease; }
-.post-list li:hover { padding-inline: .7rem; }
+.post-list li { display: grid; grid-template-columns: 140px minmax(0, 1fr) auto; gap: 2rem; align-items: start; padding: 1.8rem .2rem; border-bottom: 1px solid var(--line); transition: background-color .2s ease; }
+.post-list li:hover { background: rgb(31 107 69 / 6%); }
 .post-list time { padding-top: .18rem; color: var(--muted); font: .76rem/1.4 var(--mono); letter-spacing: .03em; }
 .post-link { font-size: clamp(1.15rem, 2vw, 1.45rem); font-weight: 680; letter-spacing: -.025em; line-height: 1.35; text-decoration: none; }
 .post-meta { display: flex; flex-wrap: wrap; gap: .38rem; margin-top: .7rem; }
@@ -287,13 +287,13 @@ h1 em, h2 em { color: var(--accent); font-family: var(--serif); font-weight: 400
 
 @media (max-width: 520px) {
   .site-header { align-items: flex-start; padding: 1.2rem 0; }
-  nav { display: grid; gap: .25rem; text-align: right; }
+  nav { gap: .35rem; }
+  nav a { font-size: .58rem; }
   .hero h1 { font-size: clamp(3rem, 15vw, 4.5rem); }
   .hero-actions .button, .deck-actions .button { width: 100%; }
   .section-heading { align-items: flex-start; }
   .section-heading > div { display: block; }
   .section-heading > a { max-width: 7rem; text-align: right; }
-  .post-list li:hover { padding-inline: .2rem; }
   .prose pre { margin-inline: -.5rem; border-radius: .4rem; }
   .speaker-note, .profile-links a { display: grid; }
   .site-footer { grid-template-columns: 1fr; }
