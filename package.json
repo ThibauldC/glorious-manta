@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "eleventy",
+    "build": "eleventy && sh scripts/build-slides.sh",
     "start": "eleventy --serve"
   },
   "devDependencies": {
