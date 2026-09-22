@@ -14,8 +14,14 @@ export default function (config) {
 
   config.setLibrary("md", markdown);
   config.addGlobalData("currentYear", () => new Date().getFullYear());
-  config.addPassthroughCopy({ public: "." });
+  config.addPassthroughCopy({
+    public: ".",
+    "sparkui/app.js": "spark-ui/app.js",
+    "sparkui/cases.js": "spark-ui/cases.js",
+    "sparkui/style.css": "spark-ui/style.css",
+  });
   config.ignores.add("README.md");
+  config.ignores.add("sparkui/README.md");
 
   config.addCollection("posts", (collection) =>
     collection

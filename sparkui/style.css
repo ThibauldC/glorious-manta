@@ -1,0 +1,491 @@
+/* Spark UI Detective
+   The game chrome follows the parent site; .spark-ui mimics Spark 3.4's web UI. */
+
+* { box-sizing: border-box; }
+
+.spark-ui {
+  background: #fff;
+  color: #333;
+  color-scheme: light;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.42857;
+}
+
+.spark-ui a { color: #0088cc; text-decoration: none; cursor: pointer; }
+.spark-ui a:hover { color: #005580; text-decoration: underline; }
+
+/* ------------------------------------------------------------- spark ui */
+
+.spark-nav {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 2px 0;
+  background: #fff;
+  border-bottom: 1px solid #e7e7e7;
+  padding: 8px 14px 0;
+}
+
+.spark-logo {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin: 0 18px 8px 0;
+}
+.spark-logo b {
+  font-size: 21px;
+  font-weight: 700;
+  color: #e25a1c;
+  letter-spacing: -0.02em;
+}
+.spark-logo small { color: #777; font-size: 11px; }
+
+.spark-nav .tab {
+  padding: 8px 13px;
+  margin-bottom: -1px;
+  border: 1px solid transparent;
+  border-radius: 4px 4px 0 0;
+  color: #0088cc;
+  font-size: 13.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.spark-nav .tab:hover { background: #eee; text-decoration: none; }
+.spark-nav .tab.active {
+  background: #fff;
+  border-color: #ddd #ddd #fff;
+  color: #555;
+  cursor: default;
+}
+.spark-nav .appname {
+  margin-left: auto;
+  padding: 8px 4px;
+  color: #777;
+  font-size: 13px;
+}
+
+.spark-body { padding: 16px 20px 60px; max-width: 1400px; }
+
+.spark-body h3 {
+  font-size: 24px;
+  font-weight: 400;
+  margin: 8px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee;
+}
+.spark-body h4 {
+  font-size: 18px;
+  font-weight: 400;
+  margin: 26px 0 10px;
+}
+
+.app-summary { list-style: none; padding: 0; margin: 0 0 18px; font-size: 13.5px; }
+.app-summary li { margin-bottom: 3px; }
+.app-summary strong { font-weight: 700; }
+
+table.spark {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+table.spark th {
+  background: #f6f6f6;
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+  font-weight: 700;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+table.spark th.sortable { cursor: pointer; }
+table.spark th.sortable:hover { background: #ececec; }
+table.spark th .arrow { color: #999; font-size: 10px; margin-left: 4px; }
+table.spark td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  vertical-align: top;
+}
+table.spark tbody tr:nth-child(odd) { background: #f9f9f9; }
+table.spark tbody tr:hover { background: #f0f4f8; }
+table.spark td.num, table.spark th.num { text-align: right; }
+table.spark .mono { font-family: Menlo, Monaco, Consolas, monospace; font-size: 12px; }
+
+tr.clickable { cursor: pointer; }
+
+.progress-cell { min-width: 150px; }
+.progress {
+  position: relative;
+  height: 15px;
+  background: #ebebeb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress .bar { height: 100%; background: #a3cd8f; }
+.progress .label {
+  position: absolute;
+  inset: 0;
+  text-align: center;
+  font-size: 11px;
+  line-height: 15px;
+  color: #333;
+}
+
+.collapsible {
+  margin: 14px 0;
+}
+.collapsible > .toggle {
+  color: #0088cc;
+  cursor: pointer;
+  font-size: 14px;
+  user-select: none;
+}
+.collapsible > .toggle:hover { text-decoration: underline; }
+.collapsible .panel {
+  margin-top: 10px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  padding: 14px;
+  background: #fff;
+}
+
+pre.plan {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  padding: 14px;
+  font-family: Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+  margin: 0;
+}
+
+.dag { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.dag .node {
+  border: 1px solid #7ba86f;
+  background: #eef7ea;
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-size: 12px;
+  text-align: center;
+  min-width: 130px;
+}
+.dag .node small { display: block; color: #777; }
+.dag .arrow { color: #999; font-size: 18px; }
+
+.timeline { border: 1px solid #ddd; border-radius: 3px; padding: 14px 14px 6px; }
+.timeline .row {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.timeline .track {
+  position: relative;
+  height: 20px;
+  background: #f4f4f4;
+  border: 1px solid #e6e6e6;
+  border-radius: 2px;
+}
+.timeline .track .bar {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  background: #92c5de;
+  border: 1px solid #6ba3c0;
+  border-radius: 2px;
+}
+.timeline .axis {
+  display: flex;
+  justify-content: space-between;
+  color: #999;
+  font-size: 11px;
+  border-top: 1px solid #eee;
+  margin-top: 6px;
+  padding-top: 4px;
+}
+.timeline .caption { color: #777; font-size: 12px; margin-bottom: 10px; }
+
+.empty-note { color: #777; font-style: italic; }
+
+/* Fabric diagnosis tab */
+.diag-tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.diag-tabs .dtab {
+  border: 1px solid #d6d6d6;
+  background: #f7f7f7;
+  border-radius: 3px;
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.diag-tabs .dtab.active { background: #0f6cbd; border-color: #0f6cbd; color: #fff; }
+
+.diag-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 18px 20px;
+  background: #fafafa;
+}
+.pill {
+  display: inline-block;
+  border-radius: 11px;
+  padding: 3px 11px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pill.ok { background: #dff6dd; color: #0e700e; }
+.pill.warning { background: #fff4ce; color: #8a6100; }
+.pill.critical { background: #fde7e9; color: #a4262c; }
+
+@media (max-width: 900px) {
+  .spark-body { padding: 12px 10px 50px; }
+  table.spark { display: block; overflow-x: auto; white-space: nowrap; }
+  .timeline .row { grid-template-columns: 120px 1fr; }
+}
+
+/* The game uses the site's visual language. The evidence UI above stays Spark-native. */
+.game-root {
+  width: calc(100vw - 2rem);
+  margin: 2rem 0 0 50%;
+  transform: translateX(-50%);
+}
+
+.detective-shell {
+  min-height: 0;
+  padding: clamp(2rem, 6vw, 5rem) 1rem;
+  background: transparent;
+  color: var(--ink);
+}
+
+.detective-card {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 5vw, 3.5rem);
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.detective-card h1 {
+  margin: .6rem 0 1rem;
+  color: var(--ink);
+  font-size: clamp(2.6rem, 6vw, 4.8rem);
+  letter-spacing: -.055em;
+  line-height: .98;
+}
+
+.detective-card h2 {
+  margin: 0 0 1.1rem;
+  color: var(--ink);
+  font-size: clamp(1.7rem, 4vw, 2.7rem);
+  letter-spacing: -.04em;
+  line-height: 1.08;
+}
+
+.detective-card p { color: var(--muted); }
+.game-note { font-size: .82rem; }
+.case-subtitle { margin-top: -.25rem; }
+.kicker {
+  margin-bottom: .8rem;
+  color: var(--accent);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.case-file {
+  margin: 1.4rem 0;
+  padding: .1rem 0 .1rem 1.1rem;
+  border-left: 3px solid var(--accent);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  line-height: 1.5;
+}
+.symptom {
+  display: inline-block;
+  padding: .5rem .9rem;
+  border: 1px solid var(--line);
+  border-radius: .4rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: .8rem/1.5 var(--mono);
+}
+
+.btn {
+  display: inline-block;
+  min-height: 46px;
+  padding: .65rem 1.2rem;
+  border: 1px solid var(--ink);
+  border-radius: 99px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: .025em;
+}
+.btn:hover { border-color: var(--accent); background: var(--accent); color: #fff; }
+.btn[disabled] { border-color: var(--line); background: var(--line); color: var(--muted); }
+.btn-ghost { border-color: var(--line); background: transparent; color: var(--ink); }
+.btn-ghost:hover { border-color: var(--accent); background: transparent; color: var(--accent); }
+
+.detective-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: .65rem 1rem;
+  border-bottom: 2px solid var(--accent);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 8px 24px rgb(32 38 37 / 8%);
+}
+.detective-bar .case-label { position: static; color: var(--ink); font-weight: 700; }
+.detective-bar .case-count { color: var(--muted); font-size: .75rem; }
+.detective-bar .spacer { flex: 1; }
+.detective-bar .btn { min-height: 0; padding: .45rem 1rem; }
+.hint-strip {
+  padding: .45rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-size: .78rem;
+}
+
+.options { margin: 1.4rem 0 .5rem; }
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  width: 100%;
+  margin-bottom: .65rem;
+  padding: .85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: .7rem;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.option:hover { border-color: var(--accent); background: var(--accent-soft); }
+.option.selected { border-color: var(--accent); background: var(--accent-soft); }
+.option .letter { color: var(--accent); font-family: var(--mono); }
+
+.verdict-banner {
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.25rem;
+  border-radius: .7rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.verdict-banner.right { border: 1px solid #2f6b40; background: #dff6dd; color: #185c2c; }
+.verdict-banner.wrong { border: 1px solid #a4262c; background: #fde7e9; color: #8b1f25; }
+.evidence-item {
+  margin-bottom: .65rem;
+  padding: .75rem 1rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: .4rem;
+  background: rgb(255 255 255 / 18%);
+  color: var(--ink);
+}
+.evidence-item .where {
+  margin-bottom: .25rem;
+  color: var(--accent);
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.fix-box {
+  margin-top: 1.5rem;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.beforeafter { display: flex; gap: .9rem; margin-top: .9rem; font-family: var(--mono); }
+.beforeafter div { flex: 1; padding: .65rem .9rem; border: 1px solid var(--line); border-radius: .4rem; background: var(--surface); }
+.beforeafter span { display: block; font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; }
+.beforeafter span, .tabs-seen { color: var(--muted); }
+.tabs-seen { margin-top: .5rem; font-size: .78rem; }
+.score-line { margin: .6rem 0 .25rem; color: var(--ink); font-size: clamp(3rem, 8vw, 5rem); font-weight: 700; }
+
+.results-table {
+  width: 100%;
+  margin: 1.25rem 0;
+  border-collapse: collapse;
+}
+.results-table th, .results-table td {
+  padding: .75rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.results-table .num { text-align: right; }
+
+/* Match Spark 3.4's bundled Bootstrap-era navbar rather than the site theme. */
+.spark-ui { min-height: 500px; }
+.spark-nav {
+  min-height: 51px;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom-color: #d4d4d4;
+  background: linear-gradient(to bottom, #fff, #f2f2f2);
+  box-shadow: 0 1px 10px rgb(0 0 0 / 10%);
+}
+.spark-logo { margin: 0 18px 0 0; }
+.spark-nav .tab {
+  height: 50px;
+  margin: 0;
+  padding: 10px 15px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font: inherit;
+  line-height: 30px;
+}
+.spark-nav .tab.active {
+  border: 0;
+  background: #e5e5e5;
+  box-shadow: inset 0 3px 8px rgb(0 0 0 / 12.5%);
+}
+.spark-nav .appname { padding: 0 4px; }
+.spark-body { max-width: none; background: #fff; }
+.spark-link, .collapsible > .toggle {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0088cc;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.spark-link:hover, .collapsible > .toggle:hover { color: #005580; text-decoration: underline; }
+.diag-tabs .dtab { color: #333; font-family: inherit; }
+.diag-tabs .dtab.active { color: #fff; }
+
+@media (max-width: 700px) {
+  .game-root { width: 100vw; margin-top: 1rem; }
+  .detective-card { padding: 1.4rem 1.1rem; }
+  .beforeafter { flex-direction: column; }
+  .detective-bar { align-items: flex-start; }
+  .detective-bar .spacer { display: none; }
+  .detective-bar .btn { width: 100%; }
+  .spark-nav .appname { width: 100%; padding: 8px 0; }
+}
