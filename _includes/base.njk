@@ -22,6 +22,7 @@
   <meta property="og:type" content="{% if layout == 'post.njk' %}article{% else %}website{% endif %}">
   <meta property="og:url" content="{{ site.url }}{{ page.url }}">
   <link rel="stylesheet" href="/css/style.css">
+  {% if stylesheet %}<link rel="stylesheet" href="{{ stylesheet }}">{% endif %}
 </head>
 <body>
   <a class="skip-link" href="#content">Skip to content</a>
@@ -34,7 +35,7 @@
       <div class="header-actions">
         <nav aria-label="Main navigation">
           <a href="/posts/"{% if page.url == '/posts/' %} aria-current="page"{% endif %}>Posts</a>
-          <a href="/presentations/"{% if page.url == '/presentations/' %} aria-current="page"{% endif %}>Presentations</a>
+          <a href="/presentations/"{% if page.url == '/presentations/' or section == 'presentations' %} aria-current="page"{% endif %}>Presentations</a>
           <a href="/biography/"{% if page.url == '/biography/' %} aria-current="page"{% endif %}>Biography</a>
         </nav>
         <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme">
