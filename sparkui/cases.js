@@ -3,7 +3,7 @@
  * Two case files, picked on the intro screen with each case's `set`:
  *
  * "talk"  The four cases from the talk. Their Spark UI data (jobs, stages, tasks,
- *         executors, SQL plans, diagnosis) is generated from the recorded event
+ *         executors, SQL plans) is generated from the recorded event
  *         logs into talk-cases.js by tools/build_talk_cases.py. Only the story
  *         around it (brief, suspects, verdict) is written here.
  *
@@ -92,12 +92,11 @@ fromLog(TALK_UI.case0, {
     { tab: "Stages", text: "Stage 13 runs 1.8 min with only 8 tasks. It reads 7.4 GiB of shuffle and spills 6.8 GiB to disk. With stage 11, which writes that shuffle, it accounts for 183 of the 217 seconds." },
     { tab: "Stage 13 detail", text: "All eight tasks take between 1.5 and 1.8 minutes and read 802 MiB to 1.0 GiB each. No skew. Every one of them spills: 4.3 to 5.9 GiB in memory, 741 to 978 MiB on disk. Shuffle read blocked time is 0 ms, so nothing is waiting on the network." },
     { tab: "SQL", text: "Query 5 hashes 259 million rows into an Exchange with number of partitions: 8. The final HashAggregate reports 41.4 GiB of spill and 8 sort fallback tasks, and the query's properties show spark.sql.shuffle.partitions = 8." },
-    { tab: "Executors", text: "One executor with 8 cores. All eight reducers run at the same time and share one pool of execution memory." },
-    { tab: "Diagnosis", text: "Data skew and time skew are clean: the largest stage 13 task is 1.1x the mean. Heavy, not uneven." }
+    { tab: "Executors", text: "One executor with 8 cores. All eight reducers run at the same time and share one pool of execution memory." }
   ],
 
   wrongAnswers: {
-    a: "Stage 13's tasks read between 802 MiB and 1.0 GiB each, and Diagnosis puts the largest at 1.1x the mean. No reducer is hot. They are all equally overloaded.",
+    a: "Stage 13's tasks read between 802 MiB and 1.0 GiB each and run between 1.5 and 1.8 minutes. No reducer is hot. They are all equally overloaded.",
     c: "The scan runs in stage 11 and reads 4.9 GiB of Parquet in 73 s. The slowest stage is 13, which reads no files at all: it aggregates the shuffle and spends its time writing and re-reading spill files.",
     d: "The Executors tab shows one executor, alive from start to finish, with no failed tasks. Here memory pressure shows up as spill, not as a lost executor."
   },
@@ -137,7 +136,6 @@ fromLog(TALK_UI.case1, {
     { tab: "Stages", text: "Stage 8 runs 2.4 min over 256 tasks and reads 3.6 GiB of shuffle. It is three quarters of the write query." },
     { tab: "Stage 8 detail", text: "Sort the tasks by duration. Task 89 (index 75) runs 2.4 min and reads 3.2 GiB, 105,720,908 records: 89% of every row in the shuffle. The median task finishes in 42 ms and reads nothing. The event timeline shows one bar still running long after every other slot is empty." },
     { tab: "SQL", text: "Query 1 joins with a SortMergeJoin after Exchange hashpartitioning(fare_rule, 256). The Exchange's local bytes read peak at 3.2 GiB in stage 8.0: task 89. The properties show autoBroadcastJoinThreshold = -1 and skewJoin disabled, so nothing is going to rescue it." },
-    { tab: "Diagnosis", text: "Fabric flags both skews for job 5: 3,319.71 MB maximum task data read against a 14.54 MB mean, and a 142.23 s task against a 0.88 s mean." },
     { tab: "Executors", text: "One executor, 8 cores, no failures, no spill. The hot task is busy, not waiting, while seven cores have nothing left to do." }
   ],
 
@@ -183,7 +181,6 @@ fromLog(TALK_UI.case2, {
     { tab: "Stage 11 detail", text: "Every attempt fails with ExecutorLostFailure, exit status 137. The first attempt of all eight tasks dies together on executor 1 after 190 s; the second dies together on executor 2 after 351 s. Two executor deaths, sixteen failed tasks." },
     { tab: "Stage 11 detail", text: "The DAG runs ShuffledRowRDD, map, mapPartitions, PythonRDD: each task hands its shuffled partition to Python code on the executor." },
     { tab: "Executors", text: "Executors 1 and 2 are dead. Loss reason: Container killed on request. Exit code is 137. Each had 8 cores, so eight Python workers shared one container." },
-    { tab: "Diagnosis", text: "Spark Advisor raises Spark_System_Executor_ExitCode137BadNode for both executors: when a container runs out of memory, YARN kills it with exit code 137." },
     { tab: "Stages", text: "Stage 10, the scan, is healthy: 53 tasks, 259,287,888 records, 13.7 GiB of shuffle written, no failures, no spill. The trouble starts when Python gets the rows." }
   ],
 
@@ -228,13 +225,12 @@ fromLog(TALK_UI.case3, {
     { tab: "Stages", text: "Stage 4 runs 9.0 min and has exactly one task. It is 99.8% of the export query." },
     { tab: "Stage 4 detail", text: "Task 52 reads 1.4 GiB, 79,479,946 records, and writes 1.2 GiB of gzip CSV. GC takes 0.9 s, and there is no spill and no shuffle. The task is not struggling. It is alone." },
     { tab: "SQL", text: "The plan runs Scan parquet, Project, Coalesce 1, WriteFiles, with no Exchange. The scan reads 24 partitions from 29 files, and Coalesce folds them into one. Number of written files: 1." },
-    { tab: "Diagnosis", text: "Executor Usage Analysis: 8 cores allocated, 1.0 in use on average, idle for 87% of the executor's lifetime." },
     { tab: "Executors", text: "One executor with 8 cores. During the export, seven of them have nothing to run." }
   ],
 
   wrongAnswers: {
     b: "The scan reads 29 files, 1.5 GiB in total: about 55 MiB a file. Its scan time is 27 s of a 538 s task.",
-    c: "Skew needs a distribution to be uneven. Stage 4 has one task, so there is nothing to compare, and Diagnosis reports no skew for that reason.",
+    c: "Skew needs a distribution to be uneven. Stage 4 has one task, so there is nothing to compare.",
     d: "Spill (Memory) and Spill (Disk) are both zero, and GC time is under a second for a nine-minute task. It is compute-bound on a single core."
   },
 
@@ -516,17 +512,6 @@ fromLog(TALK_UI.case3, {
   },
 
   environment: COMMON_ENVIRONMENT,
-
-  diagnosis: {
-    dataSkew: { severity: "ok", headline: "No data skew detected",
-      detail: "No stage has a task reading more than 2x the median partition size." },
-    timeSkew: { severity: "ok", headline: "No time skew detected",
-      detail: "The longest task in every stage finishes within 2x the stage median." },
-    executorUsage: { severity: "warning", headline: "Allocated cores idle 31% of the application runtime",
-      detail: "Cores sit unused during file listing and during the final 200-task stage.",
-      rows: [["Allocated cores", "32"], ["Average cores in use", "22.1"],
-             ["Idle core-minutes", "84.6"], ["Longest idle window", "38 s"]] }
-  },
 
   options: [
     { id: "a", text: "Data skew: one route key dominates the aggregation" },
@@ -810,17 +795,6 @@ fromLog(TALK_UI.case3, {
 
   environment: COMMON_ENVIRONMENT,
 
-  diagnosis: {
-    dataSkew: { severity: "ok", headline: "No data skew detected",
-      detail: "Partition sizes across the shuffle are within 6% of the median." },
-    timeSkew: { severity: "ok", headline: "No time skew detected",
-      detail: "The slowest task in stage 0 runs 1.3x the median." },
-    executorUsage: { severity: "ok", headline: "Executor usage is healthy",
-      detail: "Allocated cores were in use for 94% of the application runtime.",
-      rows: [["Allocated cores", "32"], ["Average cores in use", "30.1"],
-             ["Idle core-minutes", "9.8"], ["Longest idle window", "6 s"]] }
-  },
-
   options: [
     { id: "a", text: "The report scans the entire table because the filter cannot prune partitions" },
     { id: "b", text: "A hot route key skews the aggregation" },
@@ -838,7 +812,7 @@ fromLog(TALK_UI.case3, {
   ],
 
   wrongAnswers: {
-    b: "Stage 0 summary metrics: median 13.1 s, max 17.2 s, input 118 to 141 MiB. Nothing is skewed. Diagnosis agrees, all three panels are clean.",
+    b: "Stage 0 summary metrics: median 13.1 s, max 17.2 s, input 118 to 141 MiB. Nothing is skewed.",
     c: "2,847 files for 48.6 GiB averages 17 MiB per file. That is a well-sized Delta table.",
     d: "The final stage runs 200 tasks in 16 seconds. It contributes 3% of the runtime."
   },
@@ -1079,17 +1053,6 @@ fromLog(TALK_UI.case3, {
   },
 
   environment: COMMON_ENVIRONMENT.concat([["spark.driver.maxResultSize", "8g"]]),
-
-  diagnosis: {
-    dataSkew: { severity: "ok", headline: "No data skew detected",
-      detail: "Input sizes across stage 0 tasks vary by less than 15%." },
-    timeSkew: { severity: "ok", headline: "No time skew detected",
-      detail: "The slowest task in stage 0 runs 1.4x the median." },
-    executorUsage: { severity: "critical", headline: "Executors idle for 65% of the application runtime",
-      detail: "No task ran between 10:03:44 and 10:12:51. All four executors held their cores and did nothing.",
-      rows: [["Allocated cores", "32"], ["Average cores in use", "3.9"],
-             ["Idle core-minutes", "291.2"], ["Longest idle window", "9.1 min"]] }
-  },
 
   options: [
     { id: "a", text: "The scan stage is skewed across partitions" },

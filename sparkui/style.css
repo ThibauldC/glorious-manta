@@ -247,37 +247,6 @@ pre.plan {
 
 .empty-note { color: #777; font-style: italic; }
 
-/* Fabric diagnosis tab */
-.diag-tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
-.diag-tabs .dtab {
-  border: 1px solid #d6d6d6;
-  background: #f7f7f7;
-  border-radius: 3px;
-  padding: 7px 14px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.diag-tabs .dtab.active { background: #0f6cbd; border-color: #0f6cbd; color: #fff; }
-
-.diag-card {
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  padding: 18px 20px;
-  background: #fafafa;
-}
-.pill {
-  display: inline-block;
-  border-radius: 11px;
-  padding: 3px 11px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.pill.ok { background: #dff6dd; color: #0e700e; }
-.pill.warning { background: #fff4ce; color: #8a6100; }
-.pill.critical { background: #fde7e9; color: #a4262c; }
-
 @media (max-width: 900px) {
   .spark-body { padding: 12px 10px 50px; }
   table.spark { display: block; overflow-x: auto; white-space: nowrap; }
@@ -511,8 +480,6 @@ pre.plan {
   cursor: pointer;
 }
 .spark-link:hover, .collapsible > .toggle:hover { color: #005580; text-decoration: underline; }
-.diag-tabs .dtab { color: #333; font-family: inherit; }
-.diag-tabs .dtab.active { color: #fff; }
 
 @media (max-width: 700px) {
   .game-root { width: 100vw; margin-top: 1rem; }
@@ -560,7 +527,6 @@ pre.plan {
 }
 .timeline .track .mark.added { background: #5cb85c; }
 .timeline .track .mark.removed { background: #d9534f; }
-.pill.na { background: #ececec; color: #555; }
 
 .case-sets { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.6rem; }
 .case-set {

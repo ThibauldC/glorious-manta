@@ -4,9 +4,8 @@
     python3 sparkui/tools/build_talk_cases.py ~/git/personal/spark-ui-detective
 
 Reads the four event logs recorded for the talk and writes everything the Spark UI
-renderer shows: jobs, stages, every task, executors, SQL plans with their metrics,
-and the Fabric Diagnosis panels. The story around each case (brief, suspects,
-verdict) lives in cases.js.
+renderer shows: jobs, stages, every task, executors, and SQL plans with their
+metrics. The story around each case (brief, suspects, verdict) lives in cases.js.
 
 Nothing is invented. Three things are changed on the way out:
 
@@ -329,7 +328,6 @@ def build(key, cfg, logdir):
         "executors": {"summary": summary, "list": exec_list},
         "executorEvents": sorted(events_out, key=lambda x: x["ms"]),
         "environment": environment,
-        "diagnosis": diagnosis(by, jobs, stages, tasks_by_stage, execs, t_end, clean),
     }
 
 
@@ -662,106 +660,6 @@ def executor_table(execs, tasks_by_stage):
         "totalShuffleWrite": sum(r["shuffleWrite"] for r in rows),
     }
     return rows, summary
-
-
-# -------------------------------------------------------------- diagnosis
-# Fabric runs its skew analysis when a job ends and persists a finding as an advice
-# event only when it flags something. So a flagged panel comes straight from the
-# advice event, a completed job without one gets a clean panel with the task
-# numbers behind it, and a job that never ended gets no verdict at all.
-
-def diagnosis(by, jobs, stages, tasks_by_stage, execs, t_end, clean):
-    main = max(jobs, key=lambda j: j["duration"])
-    advice = {}
-    for e in by.get("SparkListenerTableAdvise", []):
-        advice[e["description"]] = e
-    out = {}
-
-    data = advice.get("Data Skew Analysis")
-    if data:
-        d = data["detail"]["data"][0]
-        out["dataSkew"] = {"severity": "warning", "headline": data["name"],
-                           "detail": "Fabric flagged %s: one task read far more data than the mean." % d["name"],
-                           "rows": [["Stage", d["name"]], ["Max Task Data Read", d["maxDataRead"]],
-                                    ["Mean Task Data Read", d["meanDataRead"]],
-                                    ["Task Data Read Skewness", str(d["taskDataReadSkewness"])]]}
-    else:
-        out["dataSkew"] = skew_panel(main, tasks_by_stage, "data")
-    timing = advice.get("Time Skew analysis")
-    if timing:
-        d = timing["detail"]["data"][0]
-        out["timeSkew"] = {"severity": "warning", "headline": timing["name"],
-                           "detail": "Fabric flagged %s: one task ran far longer than the mean." % d["name"],
-                           "rows": [["Stage", d["name"]], ["Max task duration", d["maxTaskDuration"]],
-                                    ["Mean task duration", d["meanTaskDuration"]],
-                                    ["Task duration skewness", str(d["taskDurationSkewness"])]]}
-    else:
-        out["timeSkew"] = skew_panel(main, tasks_by_stage, "time")
-    out["executorUsage"] = usage_panel(tasks_by_stage, execs, t_end)
-
-    system = by.get("SparkListenerAdvise", [])
-    if system:
-        first = system[0]
-        out["advice"] = {"severity": "critical" if first["level"] == "error" else "warning",
-                         "headline": first["name"], "detail": clean(first["description"]),
-                         "rows": [["Executor " + e["executorId"], e["level"]] for e in system]}
-    return out
-
-
-def skew_panel(job, tasks_by_stage, what):
-    name = "data skew" if what == "data" else "time skew"
-    if job["status"] == "RUNNING":
-        return {"severity": "n/a", "headline": "No %s analysis for job %d" % (name, job["id"]),
-                "detail": "Fabric analyses a job once it ends. Job %d was still running when the log stops."
-                          % job["id"]}
-    worst = None
-    for sid in job["stageIds"]:
-        good = [t for t in tasks_by_stage.get(sid, []) if t["status"] == "SUCCESS"]
-        if len(good) < 2:
-            continue
-        vals = [t["input"] + t["shuffleRead"] if what == "data" else t["duration"] for t in good]
-        mean = sum(vals) / len(vals)
-        ratio = max(vals) / mean if mean else 0
-        if worst is None or ratio > worst[1]:
-            worst = (sid, ratio, max(vals), mean)
-    head = "No %s detected for job %d" % (name, job["id"])
-    if worst is None:
-        return {"severity": "ok", "headline": head,
-                "detail": "Every stage in job %d ran a single task, so there is nothing to compare." % job["id"]}
-    sid, ratio, top, mean = worst
-    fmt = spark_bytes if what == "data" else (lambda v: "%.2f s" % (v / 1000))
-    return {"severity": "ok", "headline": head,
-            "detail": "The most uneven stage is stage %d, where the largest task is %.1fx the mean." % (sid, ratio),
-            "rows": [["Stage", "Stage %d" % sid],
-                     ["Max Task Data Read" if what == "data" else "Max task duration", fmt(top)],
-                     ["Mean Task Data Read" if what == "data" else "Mean task duration", fmt(mean)]]}
-
-
-def usage_panel(tasks_by_stage, execs, t_end):
-    workers = [e for e in execs.values() if e["id"] != "driver" and "added" in e]
-    first = min(e["added"] for e in workers)
-    # Core-milliseconds allocated vs used, from the first executor to the end of the log.
-    allocated = sum((e.get("removed", t_end) - e["added"]) * e.get("cores", 0) for e in workers)
-    spans = sorted((t["launchMs"], t["finishMs"]) for ts in tasks_by_stage.values() for t in ts)
-    busy = sum(b - a for a, b in spans)
-    idle_gap, cursor = 0, first
-    for a, b in spans:
-        idle_gap = max(idle_gap, a - cursor)
-        cursor = max(cursor, b)
-    idle_gap = max(idle_gap, t_end - cursor)
-    cores = max(e.get("cores", 0) for e in workers)
-    share = busy / allocated if allocated else 0
-    avg = busy / (t_end - first)
-    severity = "critical" if share < 0.3 else "warning" if share < 0.6 else "ok"
-    head = {"critical": "Allocated cores idle for %d%% of the executor lifetime",
-            "warning": "Allocated cores idle for %d%% of the executor lifetime",
-            "ok": "Executor usage is healthy: cores idle %d%% of the executor lifetime"}[severity]
-    return {"severity": severity, "headline": head % round(100 * (1 - share)),
-            "detail": "%d executor%s with %d cores each ran tasks for %.0f%% of the core time they held." % (
-                len(workers), "" if len(workers) == 1 else "s", cores, 100 * share),
-            "rows": [["Allocated cores", str(cores)], ["Average cores in use", "%.1f" % avg],
-                     ["Idle core-minutes", "%.1f" % ((allocated - busy) / 60000)],
-                     ["Longest idle window", dur_text(idle_gap)]]}
 
 
 # ------------------------------------------------------------------- main
