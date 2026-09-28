@@ -523,3 +523,60 @@ pre.plan {
   .detective-bar .btn { width: 100%; }
   .spark-nav .appname { width: 100%; padding: 8px 0; }
 }
+
+/* Additions for cases rebuilt from event logs: failures, dead executors, timelines */
+.spark-alert {
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  border: 1px solid #f0d58c;
+  border-radius: 3px;
+  background: #fcf8e3;
+  color: #8a6d3b;
+  font-size: 13px;
+}
+.task-failed { color: #b94a48; font-weight: 700; }
+.task-error {
+  display: inline-block;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  color: #b94a48;
+  font-family: Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+}
+.timeline .track .bar.failed { background: #e8a0a0; border-color: #c26262; }
+.timeline .track .bar.running { background: #f7d88d; border-color: #d1a93f; }
+.timeline .track .mark {
+  position: absolute;
+  top: 3px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  border: 1px solid #fff;
+  cursor: help;
+}
+.timeline .track .mark.added { background: #5cb85c; }
+.timeline .track .mark.removed { background: #d9534f; }
+.pill.na { background: #ececec; color: #555; }
+
+.case-sets { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.6rem; }
+.case-set {
+  display: flex;
+  flex-direction: column;
+  padding: 1.2rem 1.3rem;
+  border: 1px solid var(--line);
+  border-radius: .8rem;
+}
+.case-set h2 { font-size: 1.5rem; margin-bottom: .6rem; }
+.case-set p { flex: 1; font-size: .92rem; }
+.case-set .btn { align-self: flex-start; }
+@media (max-width: 700px) {
+  .case-sets { grid-template-columns: 1fr; }
+}
+
+.table-scroll { overflow-x: auto; margin-bottom: 20px; }
+.table-scroll table.spark { margin-bottom: 0; }
+.table-scroll table.spark td { white-space: nowrap; }
