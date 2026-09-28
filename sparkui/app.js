@@ -196,7 +196,7 @@
     return '' +
       '<div class="detective-shell"><div class="detective-card">' +
       '<div class="kicker">Spark UI Detective</div>' +
-      '<h1>Slow Spark jobs. Suspects to name.</h1>' +
+      '<h1>Become your own Spark detective, and solve these cases.</h1>' +
       '<p>Each case gives you a story and a Spark UI. Click through the tabs, ' +
       'drill into stages, sort the tables, read the SQL plan. When you know what went wrong, ' +
       'make your accusation.</p>' +
