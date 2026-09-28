@@ -1,9 +1,18 @@
 /* Spark UI Detective - case data
  *
- * MOCK DATA. Every number here is placeholder. Replace with values captured from
- * the real runs of case4_small_files, case5_missing_pruning and
- * case6_driver_bottleneck. The renderer in app.js never assumes anything about
- * the content, so you can edit this file alone.
+ * Two case files, picked on the intro screen with each case's `set`:
+ *
+ * "talk"  The four cases from the talk. Their Spark UI data (jobs, stages, tasks,
+ *         executors, SQL plans, diagnosis) is generated from the recorded event
+ *         logs into talk-cases.js by tools/build_talk_cases.py. Only the story
+ *         around it (brief, suspects, verdict) is written here.
+ *
+ * "new"   Three cases that were not in the talk. MOCK DATA: every number is a
+ *         placeholder, to be replaced with values captured from real runs of
+ *         case4_small_files, case5_missing_pruning and case6_driver_bottleneck.
+ *
+ * The renderer in app.js never assumes anything about the content, so you can
+ * edit this file alone.
  *
  * Units: bytes for sizes, milliseconds for durations, raw integers for records.
  * app.js formats them the way Spark does (GiB / MiB / KiB, "4.8 s", "2.4 min").
@@ -30,6 +39,14 @@ function T() {
 
 var KIB = 1024, MIB = 1024 * 1024, GIB = 1024 * 1024 * 1024;
 
+// A talk case: the Spark UI recorded in the event log plus the story written here.
+function fromLog(ui, story) {
+  var c = {}, k;
+  for (k in ui) c[k] = ui[k];
+  for (k in story) c[k] = story[k];
+  return c;
+}
+
 var COMMON_ENVIRONMENT = [
   ["spark.app.name", "Spark Job Definition"],
   ["spark.driver.cores", "8"],
@@ -50,8 +67,189 @@ var COMMON_ENVIRONMENT = [
 
 var CASES = [
 
+/* ========================================================== TALK CASE 0 == */
+fromLog(TALK_UI.case0, {
+  set: "talk",
+  id: "data-growth",
+  title: "Same code, six years of data",
+  subtitle: "Monthly route report, full-history backfill",
+  brief: "A route report removes duplicate trips, then counts trips and revenue for every " +
+         "month and pickup-to-drop-off route. It has run on the latest quarter for months. " +
+         "Today it was pointed at the full 2019 to 2024 history: 259 million trips. " +
+         "It finished, but nobody likes what they saw. Is this simply the price of more data?",
+  symptom: "259,287,888 trips, 3 min 37 s runtime",
+  question: "What is the primary cause of the runtime?",
+
+  options: [
+    { id: "a", text: "One route key dominates the aggregation, so one reducer does most of the work" },
+    { id: "b", text: "The shuffle still has eight partitions, so every reducer's aggregation spills to disk" },
+    { id: "c", text: "The scan is the bottleneck: 259 million rows is simply a lot to read" },
+    { id: "d", text: "The executor ran out of memory and had to be replaced" }
+  ],
+  answer: "b",
+
+  evidence: [
+    { tab: "Stages", text: "Stage 13 runs 1.8 min with only 8 tasks. It reads 7.4 GiB of shuffle and spills 6.8 GiB to disk. With stage 11, which writes that shuffle, it accounts for 183 of the 217 seconds." },
+    { tab: "Stage 13 detail", text: "All eight tasks take between 1.5 and 1.8 minutes and read 802 MiB to 1.0 GiB each. No skew. Every one of them spills: 4.3 to 5.9 GiB in memory, 741 to 978 MiB on disk. Shuffle read blocked time is 0 ms, so nothing is waiting on the network." },
+    { tab: "SQL", text: "Query 5 hashes 259 million rows into an Exchange with number of partitions: 8. The final HashAggregate reports 41.4 GiB of spill and 8 sort fallback tasks, and the query's properties show spark.sql.shuffle.partitions = 8." },
+    { tab: "Executors", text: "One executor with 8 cores. All eight reducers run at the same time and share one pool of execution memory." },
+    { tab: "Diagnosis", text: "Data skew and time skew are clean: the largest stage 13 task is 1.1x the mean. Heavy, not uneven." }
+  ],
+
+  wrongAnswers: {
+    a: "Stage 13's tasks read between 802 MiB and 1.0 GiB each, and Diagnosis puts the largest at 1.1x the mean. No reducer is hot. They are all equally overloaded.",
+    c: "The scan runs in stage 11 and reads 4.9 GiB of Parquet in 73 s. The slowest stage is 13, which reads no files at all: it aggregates the shuffle and spends its time writing and re-reading spill files.",
+    d: "The Executors tab shows one executor, alive from start to finish, with no failed tasks. Here memory pressure shows up as spill, not as a lost executor."
+  },
+
+  fix: {
+    text: "Raise spark.sql.shuffle.partitions from 8 to at least 256 and change nothing else. The same eight cores " +
+          "then work through 256 smaller reducers in about 32 waves, each holding a thirty-second of the aggregation " +
+          "state, which is small enough to stay in memory. More partitions add no CPU. They shrink what each task " +
+          "has to remember.",
+    before: "3 min 37 s, 6.8 GiB spilled to disk",
+    note: "The event log for the fixed run is not part of this case file."
+  }
+}),
+
+/* ========================================================== TALK CASE 1 == */
+fromLog(TALK_UI.case1, {
+  set: "talk",
+  id: "hot-key",
+  title: "The last task standing",
+  subtitle: "Trip enrichment with fare rules, 2022 to 2024",
+  brief: "Every trip from 2022 to 2024 gets a pricing-rule description from an eight-row lookup table, " +
+         "joined on a fare_rule key and written to Parquet. Broadcast joins are switched off for this " +
+         "workload, so both sides are shuffled. 119 million trips go in, 119 million come out. " +
+         "The final stage races to the end and then sits there for two minutes.",
+  symptom: "119,136,044 trips, 3 min 6 s write query",
+  question: "What is the primary cause of the runtime?",
+
+  options: [
+    { id: "a", text: "One join key holds almost every row, so one reducer does nearly all the work" },
+    { id: "b", text: "The sort-merge join spills to disk because 256 partitions is too few" },
+    { id: "c", text: "One slow or unhealthy executor is holding the stage back" },
+    { id: "d", text: "Shuffling the eight-row rule table 256 ways costs more than the join itself" }
+  ],
+  answer: "a",
+
+  evidence: [
+    { tab: "Stages", text: "Stage 8 runs 2.4 min over 256 tasks and reads 3.6 GiB of shuffle. It is three quarters of the write query." },
+    { tab: "Stage 8 detail", text: "Sort the tasks by duration. Task 89 (index 75) runs 2.4 min and reads 3.2 GiB, 105,720,908 records: 89% of every row in the shuffle. The median task finishes in 42 ms and reads nothing. The event timeline shows one bar still running long after every other slot is empty." },
+    { tab: "SQL", text: "Query 1 joins with a SortMergeJoin after Exchange hashpartitioning(fare_rule, 256). The Exchange's local bytes read peak at 3.2 GiB in stage 8.0: task 89. The properties show autoBroadcastJoinThreshold = -1 and skewJoin disabled, so nothing is going to rescue it." },
+    { tab: "Diagnosis", text: "Fabric flags both skews for job 5: 3,319.71 MB maximum task data read against a 14.54 MB mean, and a 142.23 s task against a 0.88 s mean." },
+    { tab: "Executors", text: "One executor, 8 cores, no failures, no spill. The hot task is busy, not waiting, while seven cores have nothing left to do." }
+  ],
+
+  wrongAnswers: {
+    b: "Stage 8 spills nothing: Spill (Memory) and Spill (Disk) are 0 for the stage, and both Sort nodes in the SQL plan report a spill size of 0.0 B.",
+    c: "There is only one executor, and it ran every task, fast or slow. The slow task is slow because it has 105 million records to join. The other 255 tasks share the remaining 13 million.",
+    d: "The rule side is eight rows and 748 bytes of shuffle. It is not what stage 8 spends two minutes on."
+  },
+
+  fix: {
+    text: "Salt the key. Give every trip one of 8,192 deterministic salt values, replicate the eight rule rows once per " +
+          "salt, and join on (fare_rule, salt). The STANDARD trips then hash across all 256 partitions instead of " +
+          "landing in one. For a dimension this small the better fix is to allow the broadcast join: no shuffle on the " +
+          "fact side means no partition can ever become hot.",
+    before: "Stage 8: 2.4 min, one task holding 89% of the rows",
+    note: "The event log for the fixed run is not part of this case file."
+  }
+}),
+
+/* ========================================================== TALK CASE 2 == */
+fromLog(TALK_UI.case2, {
+  set: "talk",
+  id: "executor-memory",
+  title: "The executor that kept dying",
+  subtitle: "Column null-count profile, full history",
+  brief: "A data-quality job profiles every column of the trips table: a row count and a null count per " +
+         "column, 21 rows of output. It reads the full 2019 to 2024 history, deals the 259 million trips " +
+         "evenly over eight partitions, and does the counting in Python on the executors. The first " +
+         "application attempt never finished. This is the second one, and it has been going for fourteen minutes.",
+  symptom: "21 rows expected. After 14 min: no output, two executors gone",
+  question: "What is killing the job?",
+
+  options: [
+    { id: "a", text: "The driver collects the trips and runs out of memory" },
+    { id: "b", text: "The Python profiler keeps each whole partition in memory until the executor is killed" },
+    { id: "c", text: "A bad node: the host keeps killing healthy containers" },
+    { id: "d", text: "The shuffle is skewed, so one task receives most of the trips" }
+  ],
+  answer: "b",
+
+  evidence: [
+    { tab: "Jobs", text: "Job 5 is still running after 12.5 minutes. Its scan stage finished; the next stage has 0 of 8 tasks done and 16 failed. The event timeline shows executor 1 removed, executor 2 added and removed, executor 3 added." },
+    { tab: "Stage 11 detail", text: "Every attempt fails with ExecutorLostFailure, exit status 137. The first attempt of all eight tasks dies together on executor 1 after 190 s; the second dies together on executor 2 after 351 s. Two executor deaths, sixteen failed tasks." },
+    { tab: "Stage 11 detail", text: "The DAG runs ShuffledRowRDD, map, mapPartitions, PythonRDD: each task hands its shuffled partition to Python code on the executor." },
+    { tab: "Executors", text: "Executors 1 and 2 are dead. Loss reason: Container killed on request. Exit code is 137. Each had 8 cores, so eight Python workers shared one container." },
+    { tab: "Diagnosis", text: "Spark Advisor raises Spark_System_Executor_ExitCode137BadNode for both executors: when a container runs out of memory, YARN kills it with exit code 137." },
+    { tab: "Stages", text: "Stage 10, the scan, is healthy: 53 tasks, 259,287,888 records, 13.7 GiB of shuffle written, no failures, no spill. The trouble starts when Python gets the rows." }
+  ],
+
+  wrongAnswers: {
+    a: "The driver stayed up through both executor losses; it is the process that kept writing this log. The failures are ExecutorLostFailure on executors 1 and 2, and the stage DAG shows the work running in a PythonRDD on the executors. Nothing is collected.",
+    c: "YARN labels every container that exits with 137 as coming \"from a bad node\". The same host ran the 53-task scan stage without a single failure. The containers die only in the Python stage, each time after eight Python workers have been running for minutes: that is what memory growth looks like.",
+    d: "Round-robin partitioning deals rows out one at a time, so every partition gets the same share of 259 million. And the tasks do not die one by one: all eight attempts on an executor fail in the same second, because they die with the executor."
+  },
+
+  fix: {
+    text: "Stream instead of materialising. The profiler builds [row.asDict() for row in rows] before counting anything, " +
+          "so each task holds its whole partition, about 32 million Python dictionaries, in memory. Spark can spill " +
+          "its own sorts and aggregations; it cannot spill a Python list. A generator, (row.asDict() for row in rows), " +
+          "keeps one row at a time. Same input, same eight partitions, same pool. More memory or more partitions would " +
+          "only postpone the kill.",
+    before: "Killed twice, no report after 14 min",
+    after: "Completes in 10 min 32 s"
+  }
+}),
+
+/* ========================================================== TALK CASE 3 == */
+fromLog(TALK_UI.case3, {
+  set: "talk",
+  id: "one-writer",
+  title: "One writer, seven idle cores",
+  subtitle: "Gzip CSV export for a partner, 2023 to 2024",
+  brief: "A partner wants two years of trips as one gzip-compressed CSV with a header row. The export " +
+         "selects ten columns, formats the two timestamps as text and writes the file. It takes nearly " +
+         "ten minutes for 80 million rows, and the team is about to ask for a bigger Spark pool.",
+  symptom: "79,479,946 rows, 1 file, 9 min 33 s runtime",
+  question: "What is the primary cause of the runtime?",
+
+  options: [
+    { id: "a", text: "The write runs as a single task, so one core does all the work" },
+    { id: "b", text: "The source table is split into too many small files" },
+    { id: "c", text: "Data skew: one partition of trips is much larger than the others" },
+    { id: "d", text: "Gzip compression spills to disk because the executor is short of memory" }
+  ],
+  answer: "a",
+
+  evidence: [
+    { tab: "Stages", text: "Stage 4 runs 9.0 min and has exactly one task. It is 99.8% of the export query." },
+    { tab: "Stage 4 detail", text: "Task 52 reads 1.4 GiB, 79,479,946 records, and writes 1.2 GiB of gzip CSV. GC takes 0.9 s, and there is no spill and no shuffle. The task is not struggling. It is alone." },
+    { tab: "SQL", text: "The plan runs Scan parquet, Project, Coalesce 1, WriteFiles, with no Exchange. The scan reads 24 partitions from 29 files, and Coalesce folds them into one. Number of written files: 1." },
+    { tab: "Diagnosis", text: "Executor Usage Analysis: 8 cores allocated, 1.0 in use on average, idle for 87% of the executor's lifetime." },
+    { tab: "Executors", text: "One executor with 8 cores. During the export, seven of them have nothing to run." }
+  ],
+
+  wrongAnswers: {
+    b: "The scan reads 29 files, 1.5 GiB in total: about 55 MiB a file. Its scan time is 27 s of a 538 s task.",
+    c: "Skew needs a distribution to be uneven. Stage 4 has one task, so there is nothing to compare, and Diagnosis reports no skew for that reason.",
+    d: "Spill (Memory) and Spill (Disk) are both zero, and GC time is under a second for a nine-minute task. It is compute-bound on a single core."
+  },
+
+  fix: {
+    text: "Replace coalesce(1) with repartition(64) or more. The rows, the columns, CSV and gzip stay the same; the " +
+          "output becomes a folder of part files written by 64 tasks in parallel. If the partner truly needs one " +
+          "file, that requirement is the bottleneck: a single gzip stream cannot be written in parallel.",
+    before: "9 min 33 s, one task on one core",
+    note: "The event log for the fixed run is not part of this case file."
+  }
+}),
+
 /* ================================================================ CASE 4 == */
 {
+  set: "new",
   id: "small-files",
   title: "Death by a thousand files",
   subtitle: "Bronze ingestion, every morning at 06:00",
@@ -362,6 +560,7 @@ var CASES = [
 
 /* ================================================================ CASE 5 == */
 {
+  set: "new",
   id: "missing-pruning",
   title: "The filter that never fired",
   subtitle: "Monthly revenue report, first working day of the month",
@@ -656,6 +855,7 @@ var CASES = [
 
 /* ================================================================ CASE 6 == */
 {
+  set: "new",
   id: "driver-bottleneck",
   title: "Nobody's working",
   subtitle: "Route revenue rollup, ad-hoc rerun",

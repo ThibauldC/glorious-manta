@@ -18,6 +18,7 @@ export default function (config) {
     public: ".",
     "sparkui/app.js": "spark-ui/app.js",
     "sparkui/cases.js": "spark-ui/cases.js",
+    "sparkui/talk-cases.js": "spark-ui/talk-cases.js",
     "sparkui/style.css": "spark-ui/style.css",
   });
   config.ignores.add("README.md");

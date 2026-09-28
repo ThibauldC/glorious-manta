@@ -10,14 +10,36 @@ It uses no browser storage, so a refresh restarts the game.
 | `index.njk` | the Eleventy page that mounts the game |
 | `style.css` | Spark UI styling plus the detective chrome |
 | `app.js` | screens, the Spark UI renderer, scoring |
-| `cases.js` | the three cases, as data |
+| `cases.js` | all seven cases: the story for each, plus the mock Spark UI data |
+| `talk-cases.js` | GENERATED: the Spark UI data for the talk's four cases |
+| `tools/build_talk_cases.py` | builds `talk-cases.js` from the talk's event logs |
+
+The intro screen offers two case files: the four cases from the talk (`set: "talk"`) and
+three new ones (`set: "new"`).
+
+## The talk's cases
+
+Their jobs, stages, every task, executors, SQL plans with metrics, and Diagnosis
+panels come straight from the event logs recorded for the talk. Regenerate them with:
+
+```
+python3 sparkui/tools/build_talk_cases.py ~/git/personal/spark-ui-detective
+```
+
+The script reads `case_0_logs`, `case1_logs_bad`, `case2_mem_bad_attempt2` and
+`case_3_logs` from that folder. On the way out it relabels job descriptions and app
+names (the originals, such as "CASE 1 BAD: standard-rate hot join key", give the answer
+away), masks OneLake workspace and lakehouse GUIDs, and exports only a whitelist of
+Spark properties, since the raw environment holds session tokens and a password.
+Diagnosis skew panels use Fabric's advice events where the log has them. The brief,
+suspects and verdict for each talk case live in `cases.js`, wrapped in `fromLog()`.
 
 `app.js` knows nothing about Spark specifics. It renders whatever `cases.js` gives
 it, so replacing mock numbers with real ones never touches the renderer.
 
 ## Replacing the mock data
 
-Every number in `cases.js` is a placeholder. After running the notebooks in
+Every number in the three new cases is a placeholder. After running the notebooks in
 `case4_small_files`, `case5_missing_pruning` and `case6_driver_bottleneck`, capture
 the History Server values and paste them in.
 

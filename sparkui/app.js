@@ -14,6 +14,7 @@
 
   var state = {
     screen: "intro",       // intro | brief | investigate | accuse | verdict | debrief
+    set: null,             // "talk" | "new": which case file is open
     caseIndex: 0,
     tab: "jobs",
     view: null,            // {name:"stage", id:1} | {name:"sql", id:0} | null
@@ -26,8 +27,6 @@
     visited: []            // array of objects: {jobs:true, ...} per case
   };
 
-  CASES.forEach(function () { state.visited.push({}); });
-
   var TABS = [
     { id: "jobs", label: "Jobs" },
     { id: "stages", label: "Stages" },
@@ -38,7 +37,28 @@
     { id: "diagnosis", label: "Diagnosis" }
   ];
 
-  function current() { return CASES[state.caseIndex]; }
+  var SETS = {
+    talk: { label: "The talk's cases",
+            blurb: "The four investigations from The Spark Detective, rebuilt from the event logs " +
+                   "recorded for the talk. Every number, task and plan is real." },
+    "new": { label: "New cases",
+             blurb: "Three cases that were not in the talk. The data is mocked but consistent " +
+                    "throughout, and some of it is a red herring." }
+  };
+
+  function cases() { return CASES.filter(function (c) { return c.set === state.set; }); }
+  function current() { return cases()[state.caseIndex]; }
+
+  function openSet(set) {
+    state.set = set;
+    state.caseIndex = 0;
+    state.answers = [];
+    state.visited = cases().map(function () { return {}; });
+    state.open = {};
+    state.selected = null;
+    state.diagTab = "dataSkew";
+    state.screen = "brief";
+  }
 
   /* --------------------------------------------------------- formatting */
 
@@ -99,7 +119,7 @@
     var act = target.getAttribute("data-act");
     var value = target.getAttribute("data-value");
 
-    if (act === "start") { state.screen = "brief"; }
+    if (act === "start") { openSet(value); }
     else if (act === "investigate") {
       state.screen = "investigate";
       state.tab = "jobs";
@@ -142,42 +162,44 @@
       state.screen = "verdict";
     }
     else if (act === "next") {
-      if (state.caseIndex < CASES.length - 1) {
+      if (state.caseIndex < cases().length - 1) {
         state.caseIndex += 1;
         state.screen = "brief";
         state.tab = "jobs";
         state.view = null;
         state.selected = null;
         state.open = {};
+        state.diagTab = "dataSkew";
       } else {
         state.screen = "debrief";
       }
     }
-    else if (act === "restart") {
-      state.caseIndex = 0;
-      state.answers = [];
-      state.visited = CASES.map(function () { return {}; });
-      state.open = {};
-      state.selected = null;
-      state.screen = "intro";
-    }
+    else if (act === "restart") { state.screen = "intro"; }
     render();
   });
 
   /* ------------------------------------------------------------ screens */
 
   function viewIntro() {
+    var files = Object.keys(SETS).map(function (key) {
+      var n = CASES.filter(function (c) { return c.set === key; }).length;
+      return '<div class="case-set">' +
+        '<div class="kicker">' + n + ' cases</div>' +
+        '<h2>' + esc(SETS[key].label) + '</h2>' +
+        '<p>' + esc(SETS[key].blurb) + '</p>' +
+        '<button class="btn" data-act="start" data-value="' + key + '">Open this case file</button>' +
+        '</div>';
+    }).join("");
+
     return '' +
       '<div class="detective-shell"><div class="detective-card">' +
       '<div class="kicker">Spark UI Detective</div>' +
-      '<h1>Three slow jobs. Three suspects to name.</h1>' +
-      '<p>Each case gives you a story and a real-looking Spark UI. Click through the tabs, ' +
+      '<h1>Slow Spark jobs. Suspects to name.</h1>' +
+      '<p>Each case gives you a story and a Spark UI. Click through the tabs, ' +
       'drill into stages, sort the task table, read the SQL plan, check what the Fabric ' +
       'Diagnosis views have to say. When you know what went wrong, make your accusation.</p>' +
-      '<p>No timer. No hints. Around fifteen minutes for all three.</p>' +
-      '<p class="game-note">None of these cases appeared in the talk. ' +
-      'Everything in the UI is consistent, and some of it is a red herring.</p>' +
-      '<p style="margin-top:26px"><button class="btn" data-act="start">Open the first case file</button></p>' +
+      '<p>No timer. No hints. Around five minutes a case.</p>' +
+      '<div class="case-sets">' + files + '</div>' +
       '</div></div>';
   }
 
@@ -185,7 +207,7 @@
     var c = current();
     return '' +
       '<div class="detective-shell"><div class="detective-card">' +
-      '<div class="kicker">Case ' + (state.caseIndex + 1) + ' of ' + CASES.length + '</div>' +
+      '<div class="kicker">' + esc(SETS[state.set].label) + ' \u00b7 Case ' + (state.caseIndex + 1) + ' of ' + cases().length + '</div>' +
       '<h1>' + esc(c.title) + '</h1>' +
       '<p class="case-subtitle">' + esc(c.subtitle) + '</p>' +
       '<div class="case-file">' + esc(c.brief) + '</div>' +
@@ -199,7 +221,7 @@
     return '' +
       '<div class="detective-bar">' +
         '<span class="case-label">' + esc(c.title) + '</span>' +
-        '<span class="case-count">Case ' + (state.caseIndex + 1) + ' of ' + CASES.length + '</span>' +
+        '<span class="case-count">Case ' + (state.caseIndex + 1) + ' of ' + cases().length + '</span>' +
         '<span class="spacer"></span>' +
         '<button class="btn" data-act="accuse">Make your accusation</button>' +
       '</div>' +
@@ -267,7 +289,7 @@
       (missed.length ? '. You reached a verdict without opening every tab that held evidence.' : '') +
       '</div>';
 
-    var isLast = state.caseIndex === CASES.length - 1;
+    var isLast = state.caseIndex === cases().length - 1;
 
     return '' +
       '<div class="detective-shell"><div class="detective-card">' +
@@ -277,8 +299,10 @@
       '<div class="fix-box"><b>The fix</b><p>' + esc(c.fix.text) + '</p>' +
         '<div class="beforeafter">' +
           '<div><span>Before</span>' + esc(c.fix.before) + '</div>' +
-          '<div><span>After</span>' + esc(c.fix.after) + '</div>' +
-        '</div></div>' +
+          (c.fix.after ? '<div><span>After</span>' + esc(c.fix.after) + '</div>' : '') +
+        '</div>' +
+        (c.fix.note ? '<p class="game-note">' + esc(c.fix.note) + '</p>' : '') +
+        '</div>' +
       tabsNote +
       '<p style="margin-top:26px"><button class="btn" data-act="next">' +
         (isLast ? "See the debrief" : "Next case") + '</button></p>' +
@@ -287,7 +311,9 @@
 
   function viewDebrief() {
     var correct = state.answers.filter(function (a) { return a && a.correct; }).length;
-    var rows = CASES.map(function (c, i) {
+    var list = cases();
+    var other = state.set === "talk" ? "new" : "talk";
+    var rows = list.map(function (c, i) {
       var a = state.answers[i];
       var mark = a && a.correct ? "solved" : "missed";
       var tabs = TABS.filter(function (t) { return state.visited[i][t.id]; }).length;
@@ -298,7 +324,7 @@
     return '' +
       '<div class="detective-shell"><div class="detective-card">' +
       '<div class="kicker">Debrief</div>' +
-      '<div class="score-line">' + correct + ' / ' + CASES.length + '</div>' +
+      '<div class="score-line">' + correct + ' / ' + list.length + '</div>' +
       '<p>Cases closed.</p>' +
       '<table class="results-table">' +
       '<thead><tr><th>Case</th><th>Result</th><th class="num">Tabs opened</th></tr></thead>' +
@@ -306,7 +332,9 @@
       '<p>The scripts that produce these runs, the slides, and the field guide all live in the repo: ' +
       '<a href="https://github.com/ThibauldC/spark-ui-detective" target="_blank" rel="noopener">' +
       'github.com/ThibauldC/spark-ui-detective</a>.</p>' +
-      '<p style="margin-top:22px"><button class="btn btn-ghost" data-act="restart">Play again</button></p>' +
+      '<p style="margin-top:22px"><button class="btn" data-act="start" data-value="' + other + '">' +
+        'Open ' + esc(SETS[other].label.toLowerCase()) + '</button> ' +
+        '<button class="btn btn-ghost" data-act="restart">Back to the start</button></p>' +
       '</div></div>';
   }
 
@@ -342,91 +370,155 @@
     return diagnosisTab(c);
   }
 
-  function progressCell(done, total) {
+  function progressCell(done, total, failed, skipped) {
     var pct = total ? Math.round((done / total) * 100) : 0;
+    var extra = (failed ? " (" + num(failed) + " failed)" : "") +
+      (skipped ? " (" + num(skipped) + " skipped)" : "");
     return '<td class="progress-cell"><div class="progress">' +
       '<div class="bar" style="width:' + pct + '%"></div>' +
-      '<div class="label">' + num(done) + '/' + num(total) + '</div></div></td>';
+      '<div class="label">' + num(done) + '/' + num(total) + extra + '</div></div></td>';
   }
 
   function collapsible(id, label, inner, openByDefault) {
     var open = state.open[id] === undefined ? !!openByDefault : state.open[id];
     return '<div class="collapsible">' +
       '<button type="button" class="toggle" data-act="toggle" data-value="' + id + '" aria-expanded="' + open + '">' +
-      (open ? "\u25BC " : "\u25B6 ") + esc(label) + '</button>' +
+      (open ? "▼ " : "▶ ") + esc(label) + '</button>' +
       (open ? '<div class="panel">' + inner + '</div>' : '') +
       '</div>';
   }
 
+  // Spark gives every status its own table: Active Jobs, Completed Jobs, and so
+  // on. Items without a status are finished ones, which is all the mock cases hold.
+  function byStatus(items, groups, fallback) {
+    return groups.map(function (g) {
+      return { label: g.label, rows: items.filter(function (x) { return (x.status || fallback) === g.status; }) };
+    }).filter(function (g) { return g.rows.length; });
+  }
+
+  function statusCounts(groups) {
+    return groups.map(function (g) {
+      return '<li><strong>' + g.label + ':</strong> ' + g.rows.length + '</li>';
+    }).join("");
+  }
+
+  var JOB_GROUPS = [
+    { status: "RUNNING", label: "Active Jobs" },
+    { status: "SUCCEEDED", label: "Completed Jobs" },
+    { status: "FAILED", label: "Failed Jobs" }
+  ];
+
   function jobsTab(c) {
-    var rows = c.jobs.map(function (j) {
-      return '<tr><td>' + j.id + '</td>' +
-        '<td><button type="button" class="spark-link" data-act="stage" data-value="' + j.stageIds[0] + '">' + esc(j.description) + '</button>' +
-        '<br><span style="color:#888;font-size:11.5px">' + esc(j.group) + '</span></td>' +
-        '<td class="mono">' + esc(j.submitted) + '</td>' +
-        '<td class="num">' + dur(j.duration) + '</td>' +
-        '<td class="num">' + esc(j.stages) + '</td>' +
-        progressCell(j.tasksDone, j.tasksTotal) + '</tr>';
+    var groups = byStatus(c.jobs, JOB_GROUPS, "SUCCEEDED");
+    var tables = groups.map(function (g) {
+      var rows = g.rows.map(function (j) {
+        var link = j.link !== undefined ? j.link : j.stageIds[0];
+        return '<tr><td>' + j.id + '</td>' +
+          '<td><button type="button" class="spark-link" data-act="stage" data-value="' + link + '">' + esc(j.description) + '</button>' +
+          '<br><span style="color:#888;font-size:11.5px">' + esc(j.group) + '</span></td>' +
+          '<td class="mono">' + esc(j.submitted) + '</td>' +
+          '<td class="num">' + dur(j.duration) + '</td>' +
+          '<td class="num">' + esc(j.stages) + '</td>' +
+          progressCell(j.tasksDone, j.tasksTotal, j.tasksFailed, j.tasksSkipped) + '</tr>';
+      }).join("");
+      return '<h4>' + g.label + ' (' + g.rows.length + ')</h4>' +
+        '<table class="spark"><thead><tr>' +
+          '<th>Job Id</th><th>Description</th><th>Submitted</th><th class="num">Duration</th>' +
+          '<th class="num">Stages: Succeeded/Total</th><th>Tasks (for all stages): Succeeded/Total</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>';
     }).join("");
 
+    var attempt = c.app.attemptId && c.app.attemptId !== "1";
     return '<h3>Spark Jobs <span style="color:#999;font-size:15px">(?)</span></h3>' +
       '<ul class="app-summary">' +
         '<li><strong>User:</strong> ' + esc(c.app.user) + '</li>' +
         '<li><strong>Total Uptime:</strong> ' + esc(c.app.uptime) + '</li>' +
         '<li><strong>Scheduling Mode:</strong> ' + esc(c.app.schedulingMode) + '</li>' +
-        '<li><strong>Completed Jobs:</strong> ' + c.app.completedJobs + '</li>' +
+        (attempt ? '<li><strong>Application Attempt:</strong> ' + esc(c.app.attemptId) + '</li>' : '') +
+        statusCounts(groups) +
       '</ul>' +
+      (c.app.incomplete ? '<p class="spark-alert">This application is incomplete: its event log ends ' +
+        'without an application end event, so running jobs and stages are shown as of the last event.</p>' : '') +
       collapsible("timeline", "Event Timeline", eventTimeline(c), false) +
-      '<h4>Completed Jobs (' + c.jobs.length + ')</h4>' +
-      '<table class="spark"><thead><tr>' +
-        '<th>Job Id</th><th>Description</th><th>Submitted</th><th class="num">Duration</th>' +
-        '<th class="num">Stages: Succeeded/Total</th><th>Tasks (for all stages)</th>' +
-      '</tr></thead><tbody>' + rows + '</tbody></table>';
+      tables;
+  }
+
+  function timeAxis(total) {
+    return '<div class="axis"><span>0</span><span>' + dur(total / 4) + '</span><span>' +
+      dur(total / 2) + '</span><span>' + dur((total * 3) / 4) + '</span><span>' +
+      dur(total) + '</span></div>';
   }
 
   function eventTimeline(c) {
     var total = c.app.uptimeMs;
+    function pct(ms) { return ((ms / total) * 100).toFixed(2) + "%"; }
+
+    var execRow = "";
+    if (c.executorEvents && c.executorEvents.length) {
+      execRow = '<div class="row"><div>Executors</div><div class="track">' +
+        c.executorEvents.map(function (e) {
+          var text = "Executor " + e.id + " " + e.kind + " at " + dur(e.ms) + (e.reason ? ". " + e.reason : "");
+          return '<span class="mark ' + e.kind + '" style="left:' + pct(e.ms) + '" title="' + esc(text) + '"></span>';
+        }).join("") + '</div></div>';
+    }
+
     var rows = c.jobs.map(function (j) {
-      var left = (j.startMs / total) * 100;
       var width = Math.max(((j.endMs - j.startMs) / total) * 100, 0.6);
+      var cls = j.status === "RUNNING" ? " running" : j.status === "FAILED" ? " failed" : "";
       return '<div class="row"><div>Job ' + j.id + ': ' + esc(j.description.slice(0, 34)) +
-        (j.description.length > 34 ? "\u2026" : "") + '</div>' +
-        '<div class="track"><div class="bar" style="left:' + left.toFixed(2) + '%;width:' +
+        (j.description.length > 34 ? "…" : "") + '</div>' +
+        '<div class="track"><div class="bar' + cls + '" style="left:' + pct(j.startMs) + ';width:' +
         width.toFixed(2) + '%"></div></div></div>';
     }).join("");
 
     return '<div class="timeline">' +
-      '<div class="caption">Application timeline, 0 to ' + dur(total) + '. Each bar is one job.</div>' +
-      rows +
-      '<div class="axis"><span>0</span><span>' + dur(total / 4) + '</span><span>' +
-      dur(total / 2) + '</span><span>' + dur((total * 3) / 4) + '</span><span>' +
-      dur(total) + '</span></div></div>';
+      '<div class="caption">Application timeline, 0 to ' + dur(total) + '. Each bar is one job.' +
+      (execRow ? ' Markers show executors being added (green) and removed (red); hover one for the reason.' : '') +
+      '</div>' + execRow + rows + timeAxis(total) + '</div>';
   }
 
+  var STAGE_GROUPS = [
+    { status: "ACTIVE", label: "Active Stages" },
+    { status: "PENDING", label: "Pending Stages" },
+    { status: "COMPLETE", label: "Completed Stages" },
+    { status: "FAILED", label: "Failed Stages" }
+  ];
+
   function stagesTab(c) {
-    var rows = c.stages.map(function (s) {
-      return '<tr class="clickable" data-act="stage" data-value="' + s.id + '">' +
-        '<td>' + s.id + '</td>' +
-        '<td><button type="button" class="spark-link">' + esc(s.description) + '</button></td>' +
-        '<td class="mono">' + esc(s.submitted) + '</td>' +
-        '<td class="num">' + dur(s.duration) + '</td>' +
-        progressCell(s.tasksDone, s.tasksTotal) +
-        '<td class="num">' + (s.input ? sizeRecords(s.input, s.inputRecords) : "") + '</td>' +
-        '<td class="num">' + (s.output ? bytes(s.output) : "") + '</td>' +
-        '<td class="num">' + (s.shuffleRead ? bytes(s.shuffleRead) : "") + '</td>' +
-        '<td class="num">' + (s.shuffleWrite ? bytes(s.shuffleWrite) : "") + '</td>' +
-        '<td class="num">' + (s.spill ? bytes(s.spill) : "") + '</td>' +
-        '</tr>';
+    var groups = byStatus(c.stages, STAGE_GROUPS, "COMPLETE");
+    var tables = groups.map(function (g) {
+      var rows = g.rows.map(function (s) {
+        var pending = s.status === "PENDING";
+        return '<tr' + (c.stageDetail[s.id] ? ' class="clickable" data-act="stage" data-value="' + s.id + '"' : '') + '>' +
+          '<td>' + s.id + '</td>' +
+          '<td><button type="button" class="spark-link">' + esc(s.description) + '</button></td>' +
+          '<td class="mono">' + esc(s.submitted) + '</td>' +
+          '<td class="num">' + (pending ? "Unknown" : dur(s.duration)) + '</td>' +
+          progressCell(s.tasksDone, s.tasksTotal, s.tasksFailed) +
+          '<td class="num">' + (s.input ? sizeRecords(s.input, s.inputRecords) : "") + '</td>' +
+          '<td class="num">' + (s.output ? bytes(s.output) : "") + '</td>' +
+          '<td class="num">' + (s.shuffleRead ? bytes(s.shuffleRead) : "") + '</td>' +
+          '<td class="num">' + (s.shuffleWrite ? bytes(s.shuffleWrite) : "") + '</td>' +
+          '<td class="num">' + (s.spill ? bytes(s.spill) : "") + '</td>' +
+          '</tr>';
+      }).join("");
+      return '<h4>' + g.label + ' (' + g.rows.length + ')</h4>' +
+        '<table class="spark"><thead><tr>' +
+          '<th>Stage Id</th><th>Description</th><th>Submitted</th><th class="num">Duration</th>' +
+          '<th>Tasks: Succeeded/Total</th><th class="num">Input</th><th class="num">Output</th>' +
+          '<th class="num">Shuffle Read</th><th class="num">Shuffle Write</th><th class="num">Spill (Disk)</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>';
     }).join("");
 
     return '<h3>Stages for All Jobs</h3>' +
-      '<ul class="app-summary"><li><strong>Completed Stages:</strong> ' + c.stages.length + '</li></ul>' +
-      '<h4>Completed Stages (' + c.stages.length + ')</h4>' +
-      '<table class="spark"><thead><tr>' +
-        '<th>Stage Id</th><th>Description</th><th>Submitted</th><th class="num">Duration</th>' +
-        '<th>Tasks: Succeeded/Total</th><th class="num">Input</th><th class="num">Output</th>' +
-        '<th class="num">Shuffle Read</th><th class="num">Shuffle Write</th><th class="num">Spill (Disk)</th>' +
-      '</tr></thead><tbody>' + rows + '</tbody></table>';
+      '<ul class="app-summary">' + statusCounts(groups) + '</ul>' + tables;
+  }
+
+  // Spark's task table shows a hundred rows a page; sorting applies to all tasks.
+  var TASK_PAGE = 100;
+
+  function any(list, key) {
+    return list.some(function (x) { return x[key]; });
   }
 
   function stageDetail(c, id) {
@@ -447,14 +539,23 @@
         '<td class="num">' + cell(m.p75, m.recP75) + '</td>' +
         '<td class="num">' + cell(m.max, m.recMax) + '</td></tr>';
     }).join("");
+    var summaryTable = d.summary.length
+      ? '<table class="spark"><thead><tr><th>Metric</th><th class="num">Min</th>' +
+          '<th class="num">25th percentile</th><th class="num">Median</th>' +
+          '<th class="num">75th percentile</th><th class="num">Max</th></tr></thead>' +
+          '<tbody>' + summaryRows + '</tbody></table>'
+      : '<p class="empty-note">No task in this stage has completed.</p>';
 
+    var execFailed = any(d.byExecutor, "failedTasks"), execSpill = any(d.byExecutor, "spill");
     var execRows = d.byExecutor.map(function (e) {
       return '<tr><td>' + esc(e.exec) + '</td><td class="mono">' + esc(e.address) + '</td>' +
         '<td class="num">' + dur(e.taskTime) + '</td>' +
         '<td class="num">' + e.tasks + '</td>' +
+        (execFailed ? '<td class="num">' + e.failedTasks + '</td>' : '') +
         '<td class="num">' + (e.input ? bytes(e.input) : "") + '</td>' +
         '<td class="num">' + (e.shuffleRead ? bytes(e.shuffleRead) : "") + '</td>' +
-        '<td class="num">' + (e.shuffleWrite ? bytes(e.shuffleWrite) : "") + '</td></tr>';
+        '<td class="num">' + (e.shuffleWrite ? bytes(e.shuffleWrite) : "") + '</td>' +
+        (execSpill ? '<td class="num">' + (e.spill ? bytes(e.spill) : "") + '</td>' : '') + '</tr>';
     }).join("");
 
     var tasks = d.tasks.slice();
@@ -462,8 +563,8 @@
       var key = state.sort.key, dir = state.sort.dir;
       tasks.sort(function (a, b) {
         var x = a[key], y = b[key];
-        if (typeof x === "string") return x.localeCompare(y) * dir;
-        return (x - y) * dir;
+        if (typeof x === "string" || typeof y === "string") return String(x || "").localeCompare(String(y || "")) * dir;
+        return ((x || 0) - (y || 0)) * dir;
       });
     }
 
@@ -471,69 +572,130 @@
       { key: "index", label: "Index", type: "num" },
       { key: "taskId", label: "ID", type: "num" },
       { key: "attempt", label: "Attempt", type: "num" },
-      { key: "status", label: "Status", type: "text" },
+      { key: "status", label: "Status", type: "status" },
       { key: "locality", label: "Locality Level", type: "text" },
       { key: "exec", label: "Executor ID", type: "text" },
       { key: "host", label: "Host", type: "text" },
       { key: "launch", label: "Launch Time", type: "text" },
       { key: "duration", label: "Duration", type: "dur" },
-      { key: "gc", label: "GC Time", type: "dur" },
-      { key: "input", label: "Input Size / Records", type: "sizerec", rec: "inputRecords" },
-      { key: "shuffleWrite", label: "Shuffle Write Size / Records", type: "sizerec", rec: "shuffleWriteRecords" },
-      { key: "shuffleRead", label: "Shuffle Read Size", type: "bytes" },
-      { key: "spill", label: "Spill (Disk)", type: "bytes" }
+      { key: "gc", label: "GC Time", type: "dur" }
     ];
+    // Like Spark, only show the I/O columns this stage actually has.
+    if (any(d.tasks, "input")) taskCols.push({ key: "input", label: "Input Size / Records", type: "sizerec", rec: "inputRecords" });
+    if (any(d.tasks, "output")) taskCols.push({ key: "output", label: "Output Size", type: "bytes" });
+    if (any(d.tasks, "shuffleRead")) {
+      taskCols.push(d.tasks.some(function (t) { return t.shuffleReadRecords !== undefined; })
+        ? { key: "shuffleRead", label: "Shuffle Read Size / Records", type: "sizerec", rec: "shuffleReadRecords" }
+        : { key: "shuffleRead", label: "Shuffle Read Size", type: "bytes" });
+    }
+    if (any(d.tasks, "shuffleWrite")) taskCols.push({ key: "shuffleWrite", label: "Shuffle Write Size / Records", type: "sizerec", rec: "shuffleWriteRecords" });
+    if (any(d.tasks, "memorySpill")) taskCols.push({ key: "memorySpill", label: "Spill (Memory)", type: "bytes" });
+    if (any(d.tasks, "spill") || any(d.tasks, "memorySpill")) taskCols.push({ key: "spill", label: "Spill (Disk)", type: "bytes" });
+    if (any(d.tasks, "error")) taskCols.push({ key: "error", label: "Errors", type: "error" });
 
     var head = taskCols.map(function (col) {
       var arrow = "";
-      if (state.sort && state.sort.key === col.key) arrow = state.sort.dir === -1 ? " \u25BC" : " \u25B2";
-      return '<th class="sortable' + (col.type === "text" ? "" : " num") +
+      if (state.sort && state.sort.key === col.key) arrow = state.sort.dir === -1 ? " ▼" : " ▲";
+      var text = col.type === "text" || col.type === "status" || col.type === "error";
+      return '<th class="sortable' + (text ? "" : " num") +
         '" data-act="sort" data-value="' + col.key + '">' + col.label +
         '<span class="arrow">' + arrow + '</span></th>';
     }).join("");
 
-    var body = tasks.map(function (t) {
+    var body = tasks.slice(0, TASK_PAGE).map(function (t) {
       return "<tr>" + taskCols.map(function (col) {
-        var v = t[col.key], out;
+        var v = t[col.key], out, cls = "num ";
         if (col.type === "dur") out = dur(v);
         else if (col.type === "bytes") out = v ? bytes(v) : "";
         else if (col.type === "sizerec") out = v ? sizeRecords(v, t[col.rec]) : "";
-        else out = esc(v);
-        return '<td class="' + (col.type === "text" ? "" : "num ") +
-          (col.key === "launch" ? "mono" : "") + '">' + out + "</td>";
+        else if (col.type === "status") {
+          out = v === "SUCCESS" ? esc(v) : '<span class="task-failed">' + esc(v) + '</span>';
+          cls = "";
+        } else if (col.type === "error") {
+          out = v ? '<span class="task-error" title="' + esc(v) + '">' + esc(v.split("\n")[0]) + '</span>' : "";
+          cls = "";
+        } else {
+          out = esc(v);
+          if (col.type === "text") cls = "";
+        }
+        return '<td class="' + cls + (col.key === "launch" ? "mono" : "") + '">' + out + "</td>";
       }).join("") + "</tr>";
     }).join("");
 
     var dag = '<div class="dag">' + d.dag.map(function (n, i) {
-      return (i ? '<div class="arrow">\u2192</div>' : "") +
+      return (i ? '<div class="arrow">→</div>' : "") +
         '<div class="node">' + esc(n.name) + '<small>' + esc(n.detail) + '</small></div>';
     }).join("") + '</div>';
 
-    return '<p><button type="button" class="spark-link" data-act="back">\u2190 Back to ' + (state.tab === "jobs" ? "Jobs" : "Stages") + '</button></p>' +
+    var timeline = taskTimeline(d);
+    var attempts = Math.max(stage.tasksTotal, d.tasks.length);
+    var shown = Math.min(d.tasks.length, TASK_PAGE);
+    var memorySpill = d.memorySpill !== undefined ? d.memorySpill : d.spill;
+
+    return '<p><button type="button" class="spark-link" data-act="back">← Back to ' + (state.tab === "jobs" ? "Jobs" : "Stages") + '</button></p>' +
       '<h3>Details for Stage ' + stage.id + ' (Attempt ' + stage.attempt + ')</h3>' +
       '<ul class="app-summary">' +
         '<li><strong>Total Time Across All Tasks:</strong> ' + dur(d.totalTaskTime) + '</li>' +
         '<li><strong>Locality Level Summary:</strong> ' + esc(d.localitySummary) + '</li>' +
         (d.input ? '<li><strong>Input Size / Records:</strong> ' + sizeRecords(d.input, d.inputRecords) + '</li>' : "") +
-        (d.shuffleWrite ? '<li><strong>Shuffle Write Size / Records:</strong> ' + bytes(d.shuffleWrite) + '</li>' : "") +
-        '<li><strong>Spill (Memory):</strong> ' + bytes(d.spill) + '</li>' +
+        (d.output ? '<li><strong>Output Size / Records:</strong> ' + sizeRecords(d.output, d.outputRecords) + '</li>' : "") +
+        (d.shuffleRead ? '<li><strong>Shuffle Read Size / Records:</strong> ' + sizeRecords(d.shuffleRead, d.shuffleReadRecords) + '</li>' : "") +
+        (d.shuffleWrite ? '<li><strong>Shuffle Write Size / Records:</strong> ' +
+          (d.shuffleWriteRecords !== undefined ? sizeRecords(d.shuffleWrite, d.shuffleWriteRecords) : bytes(d.shuffleWrite)) + '</li>' : "") +
+        '<li><strong>Spill (Memory):</strong> ' + bytes(memorySpill) + '</li>' +
         '<li><strong>Spill (Disk):</strong> ' + bytes(d.spill) + '</li>' +
       '</ul>' +
       collapsible("dag" + id, "DAG Visualization", dag, false) +
+      (timeline ? collapsible("tasktl" + id, "Event Timeline", timeline, false) : "") +
       '<h4>Summary Metrics for ' + num(stage.tasksDone) + ' Completed Tasks</h4>' +
-      '<table class="spark"><thead><tr><th>Metric</th><th class="num">Min</th>' +
-        '<th class="num">25th percentile</th><th class="num">Median</th>' +
-        '<th class="num">75th percentile</th><th class="num">Max</th></tr></thead>' +
-        '<tbody>' + summaryRows + '</tbody></table>' +
+      summaryTable +
       '<h4>Aggregated Metrics by Executor</h4>' +
       '<table class="spark"><thead><tr><th>Executor ID</th><th>Address</th>' +
-        '<th class="num">Task Time</th><th class="num">Total Tasks</th><th class="num">Input</th>' +
-        '<th class="num">Shuffle Read</th><th class="num">Shuffle Write</th></tr></thead>' +
+        '<th class="num">Task Time</th><th class="num">Total Tasks</th>' +
+        (execFailed ? '<th class="num">Failed Tasks</th>' : '') +
+        '<th class="num">Input</th><th class="num">Shuffle Read</th><th class="num">Shuffle Write</th>' +
+        (execSpill ? '<th class="num">Spill (Disk)</th>' : '') + '</tr></thead>' +
         '<tbody>' + execRows + '</tbody></table>' +
-      '<h4>Tasks (' + num(stage.tasksTotal) + ')</h4>' +
-      '<p style="color:#777;font-size:12.5px;margin-top:-4px">Showing ' + d.tasks.length +
-        ' of ' + num(stage.tasksTotal) + ' tasks. Click a column header to sort.</p>' +
-      '<table class="spark"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>';
+      '<h4>Tasks (' + num(attempts) + ')</h4>' +
+      '<p style="color:#777;font-size:12.5px;margin-top:-4px">Showing ' + shown +
+        ' of ' + num(attempts) + ' tasks. Click a column header to sort.</p>' +
+      '<div class="table-scroll"><table class="spark"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+  }
+
+  // Spark's stage timeline: one lane per task slot, grouped by executor, each
+  // task a bar. Only cases built from an event log carry the start offsets.
+  function taskTimeline(d) {
+    var tasks = d.tasks.filter(function (t) { return t.start !== undefined; });
+    if (!tasks.length) return "";
+    var span = Math.max(1, Math.max.apply(null, tasks.map(function (t) { return t.start + t.duration; })));
+
+    var execs = [], lanes = {};
+    tasks.slice().sort(function (a, b) { return a.start - b.start; }).forEach(function (t) {
+      if (!lanes[t.exec]) { lanes[t.exec] = []; execs.push(t.exec); }
+      var list = lanes[t.exec], i = 0;
+      while (i < list.length && list[i].end > t.start) i++;
+      if (i === list.length) list.push({ end: 0, bars: [] });
+      list[i].end = t.start + t.duration;
+      list[i].bars.push(t);
+    });
+
+    var rows = execs.map(function (exec) {
+      return lanes[exec].map(function (lane, i) {
+        return '<div class="row"><div>Executor ' + esc(exec) + ', slot ' + (i + 1) + '</div><div class="track">' +
+          lane.bars.map(function (t) {
+            var tip = "Task " + t.taskId + " (index " + t.index + ", attempt " + t.attempt + "): " +
+              t.status + ", " + dur(t.duration);
+            return '<div class="bar' + (t.status === "SUCCESS" ? "" : " failed") + '" style="left:' +
+              (t.start / span * 100).toFixed(2) + '%;width:' + Math.max(t.duration / span * 100, 0.3).toFixed(2) +
+              '%" title="' + esc(tip) + '"></div>';
+          }).join("") + '</div></div>';
+      }).join("");
+    }).join("");
+
+    return '<div class="timeline">' +
+      '<div class="caption">' + num(tasks.length) + ' task attempts over ' + dur(span) +
+      ' from stage submission. Each row is one task slot; failed attempts are red. Hover a bar for the task.</div>' +
+      rows + timeAxis(span) + '</div>';
   }
 
   function storageTab() {
@@ -553,9 +715,12 @@
 
   function executorsTab(c) {
     var s = c.executors.summary;
+    var failed = s.failedTasks !== undefined ? s.failedTasks
+      : c.executors.list.reduce(function (sum, e) { return sum + e.failedTasks; }, 0);
+    var loss = any(c.executors.list, "lossReason");
     var rows = c.executors.list.map(function (e) {
       return '<tr><td>' + esc(e.id) + '</td><td class="mono">' + esc(e.address) + '</td>' +
-        '<td>' + esc(e.status) + '</td>' +
+        '<td>' + (e.status === "Dead" ? '<span class="task-failed">Dead</span>' : esc(e.status)) + '</td>' +
         '<td class="num">' + e.rddBlocks + '</td>' +
         '<td class="num">' + bytes(e.storageMemory) + ' / ' + bytes(e.storageMemoryTotal) + '</td>' +
         '<td class="num">' + bytes(e.diskUsed) + '</td>' +
@@ -567,46 +732,60 @@
         '<td class="num">' + dur(e.taskTime) + ' (' + dur(e.gcTime) + ')</td>' +
         '<td class="num">' + bytes(e.input) + '</td>' +
         '<td class="num">' + bytes(e.shuffleRead) + '</td>' +
-        '<td class="num">' + bytes(e.shuffleWrite) + '</td></tr>';
+        '<td class="num">' + bytes(e.shuffleWrite) + '</td>' +
+        (loss ? '<td>' + (e.lossReason ? '<span class="task-error" title="' + esc(e.lossReason) + '">' +
+          esc(e.lossReason.split("\n")[0]) + '</span>' : '') + '</td>' : '') + '</tr>';
     }).join("");
 
     return '<h3>Executors</h3>' +
       '<h4>Summary</h4>' +
       '<table class="spark"><thead><tr><th></th><th class="num">Active Executors</th>' +
-        '<th class="num">Dead</th><th class="num">Total Cores</th><th class="num">Total Tasks</th>' +
+        '<th class="num">Dead</th><th class="num">Total Cores</th><th class="num">Failed Tasks</th>' +
+        '<th class="num">Total Tasks</th>' +
         '<th class="num">Task Time (GC Time)</th><th class="num">Input</th>' +
         '<th class="num">Shuffle Read</th><th class="num">Shuffle Write</th></tr></thead>' +
         '<tbody><tr><td>Total</td><td class="num">' + s.activeExecutors + '</td>' +
         '<td class="num">' + s.deadExecutors + '</td><td class="num">' + s.totalCores + '</td>' +
+        '<td class="num">' + num(failed) + '</td>' +
         '<td class="num">' + num(s.totalTasks) + '</td>' +
         '<td class="num">' + dur(s.totalTaskTime) + ' (' + dur(s.totalGcTime) + ')</td>' +
         '<td class="num">' + bytes(s.totalInput) + '</td>' +
         '<td class="num">' + bytes(s.totalShuffleRead) + '</td>' +
         '<td class="num">' + bytes(s.totalShuffleWrite) + '</td></tr></tbody></table>' +
       '<h4>Executors</h4>' +
-      '<table class="spark"><thead><tr><th>Executor ID</th><th>Address</th><th>Status</th>' +
+      '<div class="table-scroll"><table class="spark"><thead><tr><th>Executor ID</th><th>Address</th><th>Status</th>' +
         '<th class="num">RDD Blocks</th><th class="num">Storage Memory</th><th class="num">Disk Used</th>' +
         '<th class="num">Cores</th><th class="num">Active Tasks</th><th class="num">Failed Tasks</th>' +
         '<th class="num">Complete Tasks</th><th class="num">Total Tasks</th>' +
         '<th class="num">Task Time (GC Time)</th><th class="num">Input</th>' +
-        '<th class="num">Shuffle Read</th><th class="num">Shuffle Write</th></tr></thead>' +
-        '<tbody>' + rows + '</tbody></table>';
+        '<th class="num">Shuffle Read</th><th class="num">Shuffle Write</th>' +
+        (loss ? '<th>Exec Loss Reason</th>' : '') + '</tr></thead>' +
+        '<tbody>' + rows + '</tbody></table></div>';
   }
 
+  var SQL_GROUPS = [
+    { status: "RUNNING", label: "Running Queries" },
+    { status: "COMPLETED", label: "Completed Queries" },
+    { status: "FAILED", label: "Failed Queries" }
+  ];
+
   function sqlTab(c) {
-    var rows = c.sql.map(function (q) {
-      return '<tr class="clickable" data-act="sql" data-value="' + q.id + '">' +
-        '<td>' + q.id + '</td><td><button type="button" class="spark-link">' + esc(q.description) + '</button></td>' +
-        '<td class="mono">' + esc(q.submitted) + '</td>' +
-        '<td class="num">' + dur(q.duration) + '</td>' +
-        '<td>' + q.jobIds.join(", ") + '</td></tr>';
+    var groups = byStatus(c.sql, SQL_GROUPS, "COMPLETED");
+    var tables = groups.map(function (g) {
+      var rows = g.rows.map(function (q) {
+        return '<tr class="clickable" data-act="sql" data-value="' + q.id + '">' +
+          '<td>' + q.id + '</td><td><button type="button" class="spark-link">' + esc(q.description) + '</button></td>' +
+          '<td class="mono">' + esc(q.submitted) + '</td>' +
+          '<td class="num">' + dur(q.duration) + '</td>' +
+          '<td>' + q.jobIds.join(", ") + '</td></tr>';
+      }).join("");
+      return '<h4>' + g.label + ' (' + g.rows.length + ')</h4>' +
+        '<table class="spark"><thead><tr><th>ID</th><th>Description</th><th>Submitted</th>' +
+          '<th class="num">Duration</th><th>Job IDs</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody></table>';
     }).join("");
 
-    return '<h3>SQL / DataFrame</h3>' +
-      '<h4>Completed Queries (' + c.sql.length + ')</h4>' +
-      '<table class="spark"><thead><tr><th>ID</th><th>Description</th><th>Submitted</th>' +
-        '<th class="num">Duration</th><th>Job IDs</th></tr></thead>' +
-        '<tbody>' + rows + '</tbody></table>';
+    return '<h3>SQL / DataFrame</h3>' + tables;
   }
 
   function findQuery(c, id) {
@@ -617,15 +796,31 @@
     var q = findQuery(c, id);
     if (!q) return '<p class="empty-note">Query not found.</p>';
 
-    return '<p><button type="button" class="spark-link" data-act="back">\u2190 Back to SQL / DataFrame</button></p>' +
+    var jobs = { RUNNING: [], SUCCEEDED: [], FAILED: [] };
+    q.jobIds.forEach(function (jid) {
+      var j = c.jobs.filter(function (x) { return x.id === jid; })[0];
+      jobs[(j && j.status) || "SUCCEEDED"].push(jid);
+    });
+    var jobLines = [["Running Jobs", jobs.RUNNING], ["Succeeded Jobs", jobs.SUCCEEDED], ["Failed Jobs", jobs.FAILED]]
+      .filter(function (p) { return p[1].length; })
+      .map(function (p) { return '<li><strong>' + p[0] + ':</strong> ' + p[1].join(", ") + '</li>'; }).join("");
+
+    var props = (q.properties || []).map(function (p) {
+      return '<tr><td class="mono">' + esc(p[0]) + '</td><td class="mono">' + esc(p[1]) + '</td></tr>';
+    }).join("");
+
+    return '<p><button type="button" class="spark-link" data-act="back">← Back to SQL / DataFrame</button></p>' +
       '<h3>Details for Query ' + q.id + '</h3>' +
       '<ul class="app-summary">' +
         '<li><strong>Submitted Time:</strong> ' + esc(q.submitted) + '</li>' +
         '<li><strong>Duration:</strong> ' + dur(q.duration) + '</li>' +
-        '<li><strong>Succeeded Jobs:</strong> ' + q.jobIds.join(", ") + '</li>' +
+        jobLines +
       '</ul>' +
       (q.graph ? planGraph(q) : "") +
-      collapsible("plan" + id, "Details", '<pre class="plan">' + esc(q.plan) + '</pre>', true);
+      collapsible("plan" + id, "Details", '<pre class="plan">' + esc(q.plan) + '</pre>', true) +
+      (props ? collapsible("props" + id, "SQL / DataFrame Properties",
+        '<table class="spark" style="margin:0"><thead><tr><th>Name</th><th>Value</th></tr></thead>' +
+        '<tbody>' + props + '</tbody></table>', false) : "");
   }
 
   /* ---------------------------------------------------------- plan graph */
@@ -666,7 +861,7 @@
     }).join("");
 
     var nodeHtml = q.graph.nodes.map(function (n) {
-      var tip = blocks[n.id];
+      var tip = blocks[n.id] || n.tip;
       return '<div class="pv-node" data-id="' + n.id + '"' + (tip ? ' title="' + esc(tip) + '"' : "") + '>' +
         '<b>' + esc(n.name) + '</b>' + (n.metrics || []).map(metricLines).join("") + '</div>';
     }).join("");
@@ -831,23 +1026,25 @@
       { id: "timeSkew", label: "Time Skew" },
       { id: "executorUsage", label: "Executor Usage Analysis" }
     ];
+    if (c.diagnosis.advice) panels.push({ id: "advice", label: "Spark Advisor" });
 
+    var tab = c.diagnosis[state.diagTab] ? state.diagTab : "dataSkew";
     var nav = panels.map(function (p) {
-      var active = state.diagTab === p.id;
+      var active = tab === p.id;
       return '<button type="button" class="dtab' + (active ? " active" : "") +
         '" data-act="diagtab" data-value="' + p.id + '" aria-pressed="' + active + '">' + p.label + '</button>';
     }).join("");
 
-    var d = c.diagnosis[state.diagTab];
+    var d = c.diagnosis[tab];
     var rows = (d.rows || []).map(function (r) {
       return '<tr><td>' + esc(r[0]) + '</td><td class="num mono">' + esc(r[1]) + '</td></tr>';
     }).join("");
 
     return '<h3>Diagnosis</h3>' +
-      '<p style="color:#777;font-size:13px;margin-top:-6px">Fabric-specific analysis of the completed application.</p>' +
+      '<p style="color:#777;font-size:13px;margin-top:-6px">Fabric-specific analysis of the application.</p>' +
       '<div class="diag-tabs">' + nav + '</div>' +
       '<div class="diag-card">' +
-        '<span class="pill ' + d.severity + '">' + d.severity + '</span>' +
+        '<span class="pill ' + d.severity.replace("/", "") + '">' + esc(d.severity) + '</span>' +
         '<h4 style="margin:10px 0 6px">' + esc(d.headline) + '</h4>' +
         '<p style="color:#555">' + esc(d.detail) + '</p>' +
         (rows ? '<table class="spark" style="max-width:460px;margin-top:14px"><tbody>' +
