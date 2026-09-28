@@ -20,6 +20,7 @@
     diagTab: "dataSkew",
     sort: null,            // {key:"duration", dir:-1}
     open: {},              // collapsible id -> bool
+    showStageTask: false,  // SQL graph: show where each max metric came from
     selected: null,
     answers: [],           // {caseId, chosen, correct}
     visited: []            // array of objects: {jobs:true, ...} per case
@@ -83,6 +84,7 @@
     else if (state.screen === "verdict") html = viewVerdict();
     else html = viewDebrief();
     root.innerHTML = html;
+    layoutPlanGraph();
     window.scrollTo(0, 0);
   }
 
@@ -116,6 +118,12 @@
     else if (act === "back") { state.view = null; state.sort = null; }
     else if (act === "diagtab") { state.diagTab = value; }
     else if (act === "toggle") { state.open[value] = !state.open[value]; }
+    else if (act === "stagetask") {
+      // Relayout in place: a full render would jump the page back to the top.
+      state.showStageTask = target.checked;
+      layoutPlanGraph();
+      return;
+    }
     else if (act === "sort") {
       if (state.sort && state.sort.key === value) state.sort.dir *= -1;
       else state.sort = { key: value, dir: -1 };
@@ -601,13 +609,13 @@
         '<tbody>' + rows + '</tbody></table>';
   }
 
-  function sqlDetail(c, id) {
-    var q = c.sql.filter(function (x) { return x.id === id; })[0];
-    if (!q) return '<p class="empty-note">Query not found.</p>';
+  function findQuery(c, id) {
+    return c.sql.filter(function (x) { return x.id === id; })[0];
+  }
 
-    var metricRows = (q.metrics || []).map(function (m) {
-      return '<tr><td>' + esc(m[0]) + '</td><td class="num mono">' + esc(m[1]) + '</td></tr>';
-    }).join("");
+  function sqlDetail(c, id) {
+    var q = findQuery(c, id);
+    if (!q) return '<p class="empty-note">Query not found.</p>';
 
     return '<p><button type="button" class="spark-link" data-act="back">\u2190 Back to SQL / DataFrame</button></p>' +
       '<h3>Details for Query ' + q.id + '</h3>' +
@@ -616,10 +624,205 @@
         '<li><strong>Duration:</strong> ' + dur(q.duration) + '</li>' +
         '<li><strong>Succeeded Jobs:</strong> ' + q.jobIds.join(", ") + '</li>' +
       '</ul>' +
-      (metricRows ? '<h4>Plan node metrics</h4><table class="spark"><thead><tr>' +
-        '<th>Metric</th><th class="num">Value</th></tr></thead><tbody>' +
-        metricRows + '</tbody></table>' : "") +
+      (q.graph ? planGraph(q) : "") +
       collapsible("plan" + id, "Details", '<pre class="plan">' + esc(q.plan) + '</pre>', true);
+  }
+
+  /* ---------------------------------------------------------- plan graph */
+
+  // The SQL tab's DAG. planGraph() emits unpositioned HTML; layoutPlanGraph()
+  // runs after render(), measures every box and places it, since node sizes
+  // depend on their metric text.
+
+  // "(3) HashAggregate\n..." blocks from the plan text, keyed by node id. Spark
+  // shows the same detail when you hover a node.
+  function planBlocks(plan) {
+    var out = {};
+    plan.split(/\n\n+/).forEach(function (block) {
+      var m = /^\((\d+)\) /.exec(block);
+      if (m) out[m[1]] = block.replace(/\s+$/, "");
+    });
+    return out;
+  }
+
+  // [name, value] renders as one line. [name, total, min, med, max, maxAt] is a
+  // task-aggregated metric and renders the way Spark 3.4 does, over two lines.
+  function metricLines(m) {
+    if (m.length === 2) return '<div>' + esc(m[0]) + ': ' + esc(m[1]) + '</div>';
+    return '<div>' + esc(m[0]) + ' total (min, med, max<span class="pv-st"> (stageId: taskId)</span>)</div>' +
+      '<div>' + esc(m[1]) + ' (' + esc(m[2]) + ', ' + esc(m[3]) + ', ' + esc(m[4]) +
+      '<span class="pv-st"> (' + esc(m[5]) + ')</span>)</div>';
+  }
+
+  function planGraph(q) {
+    var blocks = planBlocks(q.plan);
+    var clusters = q.graph.clusters || {};
+
+    var clusterHtml = Object.keys(clusters).map(function (id) {
+      var cl = clusters[id];
+      return '<div class="pv-cluster" data-id="' + esc(id) + '"><div class="pv-label">' +
+        '<b>' + esc(cl.name) + '</b>' + (cl.metrics || []).map(metricLines).join("") +
+        '</div></div>';
+    }).join("");
+
+    var nodeHtml = q.graph.nodes.map(function (n) {
+      var tip = blocks[n.id];
+      return '<div class="pv-node" data-id="' + n.id + '"' + (tip ? ' title="' + esc(tip) + '"' : "") + '>' +
+        '<b>' + esc(n.name) + '</b>' + (n.metrics || []).map(metricLines).join("") + '</div>';
+    }).join("");
+
+    return '<div class="plan-viz-toolbar"><label><input type="checkbox" data-act="stagetask"' +
+        (state.showStageTask ? " checked" : "") + '> ' +
+        'Show the Stage ID and Task ID that corresponds to the max metric</label></div>' +
+      '<div class="plan-viz" data-query="' + q.id + '"><div class="pv-canvas pending">' +
+        clusterHtml + '<svg class="pv-edges" aria-hidden="true"></svg>' + nodeHtml +
+      '</div></div>';
+  }
+
+  function layoutPlanGraph() {
+    var box = document.querySelector(".plan-viz");
+    if (!box) return;
+    var q = findQuery(current(), Number(box.getAttribute("data-query")));
+    var canvas = box.querySelector(".pv-canvas");
+    box.classList.toggle("show-st", !!state.showStageTask);
+
+    var PAD_X = 12, PAD_TOP = 8, LABEL_GAP = 8, PAD_BOTTOM = 12;
+    var GAP_X = 30, GAP_Y = 34, MARGIN = 6;
+
+    var nodes = {}, list = [];
+    q.graph.nodes.forEach(function (d) {
+      var el = canvas.querySelector('.pv-node[data-id="' + d.id + '"]');
+      var n = { d: d, el: el, w: el.offsetWidth, h: el.offsetHeight, kids: [], parent: null };
+      nodes[d.id] = n;
+      list.push(n);
+    });
+    // A plan is a tree. If a node ever feeds two consumers, the first one owns
+    // its position; every edge is still drawn.
+    list.forEach(function (n) {
+      (n.d.from || []).forEach(function (id) {
+        var kid = nodes[id];
+        if (!kid.parent) { kid.parent = n; n.kids.push(kid); }
+      });
+    });
+
+    var clusters = {};
+    Object.keys(q.graph.clusters || {}).forEach(function (id) {
+      var el = canvas.querySelector('.pv-cluster[data-id="' + id + '"]');
+      var label = el.querySelector(".pv-label");
+      clusters[id] = { el: el, label: label, lw: label.offsetWidth, lh: label.offsetHeight, members: [] };
+    });
+    list.forEach(function (n) { if (n.d.cluster) clusters[n.d.cluster].members.push(n); });
+
+    // The cluster label sits right of the centre line, clear of the incoming edge,
+    // so a clustered node reserves room for it on both sides.
+    function reserve(n) {
+      var cl = clusters[n.d.cluster];
+      if (!cl) return n.w;
+      return 2 * Math.max(n.w / 2 + PAD_X, 14 + cl.lw + PAD_X);
+    }
+
+    var maxDepth = 0;
+    function measure(n, depth) {
+      n.depth = depth;
+      maxDepth = Math.max(maxDepth, depth);
+      n.kidsSpan = n.kids.reduce(function (sum, k) { return sum + measure(k, depth + 1); }, 0) +
+        GAP_X * Math.max(n.kids.length - 1, 0);
+      n.span = Math.max(reserve(n), n.kidsSpan);
+      return n.span;
+    }
+    function place(n, left) {
+      n.cx = left + n.span / 2;
+      var x = left + (n.span - n.kidsSpan) / 2;
+      n.kids.forEach(function (k) { place(k, x); x += k.span + GAP_X; });
+    }
+    var left = 0;
+    list.filter(function (n) { return !n.parent; }).forEach(function (root) {
+      measure(root, 0);
+      place(root, left);
+      left += root.span + GAP_X;
+    });
+
+    // Data flows downward: leaves on the top row, the root at the bottom. The gap
+    // below a row grows when an edge leaves one cluster or enters another.
+    var rowH = [], gap = [], y = [0], r;
+    list.forEach(function (n) {
+      n.row = maxDepth - n.depth;
+      rowH[n.row] = Math.max(rowH[n.row] || 0, n.h);
+    });
+    for (r = 0; r < maxDepth; r++) gap[r] = GAP_Y;
+    list.forEach(function (n) {
+      var p = n.parent;
+      if (!p) return;
+      var own = n.d.cluster, next = p.d.cluster, extra = 0;
+      if (own && own !== next) extra += PAD_BOTTOM;
+      if (next && next !== own) extra += clusters[next].lh + PAD_TOP + LABEL_GAP;
+      gap[n.row] = Math.max(gap[n.row], GAP_Y + extra);
+    });
+    for (r = 1; r <= maxDepth; r++) y[r] = y[r - 1] + rowH[r - 1] + gap[r - 1];
+    list.forEach(function (n) {
+      n.x = n.cx - n.w / 2;
+      n.y = y[n.row] + (rowH[n.row] - n.h) / 2;
+    });
+
+    var rects = list.map(function (n) { return { x: n.x, y: n.y, w: n.w, h: n.h }; });
+    Object.keys(clusters).forEach(function (id) {
+      var cl = clusters[id], m = cl.members;
+      if (!m.length) return;
+      var x0 = Math.min.apply(null, m.map(function (n) { return n.x; }));
+      var x1 = Math.max.apply(null, m.map(function (n) { return n.x + n.w; }));
+      var y0 = Math.min.apply(null, m.map(function (n) { return n.y; }));
+      var y1 = Math.max.apply(null, m.map(function (n) { return n.y + n.h; }));
+      var mid = (x0 + x1) / 2;
+      cl.x = x0 - PAD_X;
+      cl.w = Math.max(x1 + PAD_X, mid + 14 + cl.lw + PAD_X) - cl.x;
+      cl.y = y0 - LABEL_GAP - cl.lh - PAD_TOP;
+      cl.h = y1 + PAD_BOTTOM - cl.y;
+      rects.push(cl);
+    });
+
+    var minX = Math.min.apply(null, rects.map(function (b) { return b.x; }));
+    var minY = Math.min.apply(null, rects.map(function (b) { return b.y; }));
+    var dx = MARGIN - minX, dy = MARGIN - minY;
+    var width = Math.max.apply(null, rects.map(function (b) { return b.x + b.w; })) + dx + MARGIN;
+    var height = Math.max.apply(null, rects.map(function (b) { return b.y + b.h; })) + dy + MARGIN;
+
+    function put(el, b) {
+      el.style.left = (b.x + dx) + "px";
+      el.style.top = (b.y + dy) + "px";
+    }
+    list.forEach(function (n) { put(n.el, n); });
+    Object.keys(clusters).forEach(function (id) {
+      var cl = clusters[id];
+      if (!cl.members.length) return;
+      put(cl.el, cl);
+      cl.el.style.width = cl.w + "px";
+      cl.el.style.height = cl.h + "px";
+      cl.label.style.top = PAD_TOP + "px";
+      cl.label.style.right = PAD_X + "px";
+    });
+
+    var paths = [];
+    list.forEach(function (n) {
+      var from = n.d.from || [];
+      from.forEach(function (id, i) {
+        var k = nodes[id];
+        var x1 = k.cx + dx, y1 = k.y + k.h + dy;
+        var x2 = n.cx + dx + (i - (from.length - 1) / 2) * Math.min(24, n.w / (from.length + 1));
+        var y2 = n.y + dy - 1, ym = (y1 + y2) / 2;
+        paths.push('<path d="M' + x1 + ',' + y1 + ' C' + x1 + ',' + ym + ' ' + x2 + ',' + ym +
+          ' ' + x2 + ',' + y2 + '" marker-end="url(#pv-arrow)"/>');
+      });
+    });
+    var svg = canvas.querySelector(".pv-edges");
+    svg.setAttribute("width", width);
+    svg.setAttribute("height", height);
+    svg.innerHTML = '<defs><marker id="pv-arrow" viewBox="0 0 10 10" refX="9" refY="5" ' +
+      'markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker></defs>' +
+      paths.join("");
+
+    canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
+    canvas.classList.remove("pending");
   }
 
   function diagnosisTab(c) {

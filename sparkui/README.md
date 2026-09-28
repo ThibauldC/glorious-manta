@@ -34,10 +34,17 @@ input, inputRecords, shuffleWrite, shuffleWriteRecords, shuffleRead, spill
 Twenty rows per decisive stage is enough. The table header says "Showing 20 of 625",
 which is what the real Spark UI does anyway.
 
+The SQL plan graph is the exception to "do not pre-format". Each query's `graph` holds
+nodes whose ids match the `(n)` numbers in the plan text, with `from` naming the nodes
+that feed in and `cluster` naming the WholeStageCodegen box around them. Its metrics are
+strings copied as the SQL tab prints them: `[name, value]`, or
+`[name, total, min, med, max, "stage 1.0: task 39"]` for task-aggregated metrics.
+Hovering a node shows its block from the plan text, as Spark does.
+
 ## What the player can do
 
 Switch tabs, drill from Stages into a stage, sort the task table by any column, open
-the DAG and Event Timeline collapsibles, read the SQL plan, and check the three Fabric
+the DAG and Event Timeline collapsibles, read the SQL plan graph and its metrics, and check the three Fabric
 Diagnosis panels. Then accuse.
 
 The site tracks which tabs each player opened and mentions it in the verdict, so

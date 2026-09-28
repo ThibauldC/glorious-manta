@@ -10,6 +10,12 @@
  *
  * Task rows use the compact T() helper below so a captured task table stays one
  * line per task and is easy to paste over.
+ *
+ * Each SQL query carries a `graph` for the plan DAG. Node ids match the (n)
+ * numbers in the plan text; `from` lists the nodes feeding into a node, and
+ * `cluster` puts it inside a WholeStageCodegen box. Graph metrics are strings,
+ * copied as the SQL tab prints them: [name, value] for a plain metric, or
+ * [name, total, min, med, max, "stage 1.0: task 39"] for a task-aggregated one.
  */
 
 var TASK_FIELDS = ["index", "taskId", "attempt", "exec", "host", "launch",
@@ -206,12 +212,49 @@ var CASES = [
       submitted: "2026/03/12 09:14:04",
       duration: 502000,
       jobIds: [0, 1],
-      metrics: [
-        ["number of files read", "20,000"],
-        ["size of files read", "3.0 GiB"],
-        ["metadata time", "2.4 min"],
-        ["number of output rows", "10,231,455"]
-      ],
+      graph: {
+        clusters: {
+          1: { name: "WholeStageCodegen (1)", metrics: [
+            ["duration", "47.3 m", "1.8 s", "4.7 s", "9.0 s", "stage 1.0: task 39"]] },
+          2: { name: "WholeStageCodegen (2)", metrics: [
+            ["duration", "11.2 s", "31 ms", "70 ms", "231 ms", "stage 2.0: task 660"]] }
+        },
+        nodes: [
+          { id: 1, name: "Scan json", cluster: 1, metrics: [
+            ["number of output rows", "10,231,455"],
+            ["number of files read", "20,000"],
+            ["metadata time", "2.4 m"],
+            ["size of files read", "3.0 GiB"]] },
+          { id: 2, name: "Project", cluster: 1, from: [1] },
+          { id: 3, name: "HashAggregate", cluster: 1, from: [2], metrics: [
+            ["number of output rows", "25,612"],
+            ["spill size", "0.0 B", "0.0 B", "0.0 B", "0.0 B", "stage 1.0: task 32"],
+            ["time in aggregation build", "1.9 m", "38 ms", "176 ms", "402 ms", "stage 1.0: task 39"],
+            ["peak memory", "39.2 GiB", "64.3 MiB", "64.3 MiB", "64.3 MiB", "stage 1.0: task 32"],
+            ["number of sort fallback tasks", "0"]] },
+          { id: 4, name: "Exchange", from: [3], metrics: [
+            ["shuffle records written", "25,612"],
+            ["shuffle write time", "1.1 s", "1 ms", "1 ms", "9 ms", "stage 1.0: task 39"],
+            ["records read", "25,612"],
+            ["local bytes read", "378.0 KiB", "1473.0 B", "1935.0 B", "2.3 KiB", "stage 2.0: task 660"],
+            ["remote bytes read", "1134.0 KiB", "4.5 KiB", "5.7 KiB", "7.0 KiB", "stage 2.0: task 660"],
+            ["fetch wait time", "0 ms", "0 ms", "0 ms", "0 ms", "stage 2.0: task 657"],
+            ["data size", "2.3 MiB", "3.3 KiB", "3.8 KiB", "4.3 KiB", "stage 1.0: task 39"],
+            ["number of partitions", "200"],
+            ["shuffle bytes written", "1512.0 KiB", "2.1 KiB", "2.4 KiB", "2.7 KiB", "stage 1.0: task 39"]] },
+          { id: 5, name: "HashAggregate", cluster: 2, from: [4], metrics: [
+            ["number of output rows", "4,870"],
+            ["spill size", "0.0 B", "0.0 B", "0.0 B", "0.0 B", "stage 2.0: task 657"],
+            ["time in aggregation build", "2.6 s", "4 ms", "11 ms", "58 ms", "stage 2.0: task 660"],
+            ["peak memory", "12.6 GiB", "64.3 MiB", "64.3 MiB", "64.3 MiB", "stage 2.0: task 657"],
+            ["number of sort fallback tasks", "0"]] },
+          { id: 6, name: "WriteFiles", from: [5], metrics: [
+            ["number of written files", "200"],
+            ["written output", "412.0 KiB", "1937.0 B", "2.1 KiB", "2.6 KiB", "stage 2.0: task 660"],
+            ["number of output rows", "4,870"],
+            ["number of dynamic part", "0"]] }
+        ]
+      },
       plan:
 "== Physical Plan ==\n" +
 "AdaptiveSparkPlan (7)\n" +
@@ -448,13 +491,54 @@ var CASES = [
       submitted: "2026/03/12 11:04:10",
       duration: 534000,
       jobIds: [0],
-      metrics: [
-        ["number of files read", "2,847"],
-        ["size of files read", "48.6 GiB"],
-        ["number of output rows (scan)", "251,340,682"],
-        ["number of output rows (filter)", "3,582,628"],
-        ["number of output rows (write)", "400"]
-      ],
+      graph: {
+        clusters: {
+          1: { name: "WholeStageCodegen (1)", metrics: [
+            ["duration", "79.6 m", "9.5 s", "12.8 s", "16.9 s", "stage 0.0: task 7"]] },
+          2: { name: "WholeStageCodegen (2)", metrics: [
+            ["duration", "9.4 s", "18 ms", "44 ms", "162 ms", "stage 1.0: task 375"]] }
+        },
+        nodes: [
+          { id: 1, name: "Scan parquet spark_catalog.default.nyc_yellow_trips", metrics: [
+            ["number of output rows", "251,340,682"],
+            ["number of files read", "2,847"],
+            ["number of partitions read", "72"],
+            ["metadata time", "214 ms"],
+            ["size of files read", "48.6 GiB"],
+            ["scan time", "61.3 m", "7.3 s", "9.9 s", "13.0 s", "stage 0.0: task 7"]] },
+          { id: 2, name: "Filter", cluster: 1, from: [1], metrics: [
+            ["number of output rows", "3,582,628"]] },
+          { id: 3, name: "Project", cluster: 1, from: [2] },
+          { id: 4, name: "HashAggregate", cluster: 1, from: [3], metrics: [
+            ["number of output rows", "49,861"],
+            ["spill size", "0.0 B", "0.0 B", "0.0 B", "0.0 B", "stage 0.0: task 0"],
+            ["time in aggregation build", "1.3 m", "153 ms", "214 ms", "288 ms", "stage 0.0: task 7"],
+            ["peak memory", "23.4 GiB", "64.3 MiB", "64.3 MiB", "64.3 MiB", "stage 0.0: task 0"],
+            ["number of sort fallback tasks", "0"]] },
+          { id: 5, name: "Exchange", from: [4], metrics: [
+            ["shuffle records written", "49,861"],
+            ["shuffle write time", "1.9 s", "3 ms", "5 ms", "14 ms", "stage 0.0: task 7"],
+            ["records read", "49,861"],
+            ["local bytes read", "615.0 KiB", "2.4 KiB", "3.1 KiB", "3.8 KiB", "stage 1.0: task 375"],
+            ["remote bytes read", "1.8 MiB", "7.2 KiB", "8.9 KiB", "11.0 KiB", "stage 1.0: task 375"],
+            ["fetch wait time", "0 ms", "0 ms", "0 ms", "0 ms", "stage 1.0: task 372"],
+            ["data size", "3.7 MiB", "9.1 KiB", "10.4 KiB", "11.7 KiB", "stage 0.0: task 7"],
+            ["number of partitions", "200"],
+            ["shuffle bytes written", "2.4 MiB", "5.8 KiB", "6.6 KiB", "7.4 KiB", "stage 0.0: task 7"]] },
+          { id: 6, name: "HashAggregate", cluster: 2, from: [5], metrics: [
+            ["number of output rows", "7,164"],
+            ["spill size", "0.0 B", "0.0 B", "0.0 B", "0.0 B", "stage 1.0: task 372"],
+            ["time in aggregation build", "1.7 s", "2 ms", "7 ms", "41 ms", "stage 1.0: task 375"],
+            ["peak memory", "12.6 GiB", "64.3 MiB", "64.3 MiB", "64.3 MiB", "stage 1.0: task 372"],
+            ["number of sort fallback tasks", "0"]] },
+          { id: 7, name: "TakeOrderedAndProject", from: [6] },
+          { id: 8, name: "WriteFiles", from: [7], metrics: [
+            ["number of written files", "1"],
+            ["written output", "18.0 KiB", "0.0 B", "0.0 B", "18.0 KiB", "stage 1.0: task 372"],
+            ["number of output rows", "400"],
+            ["number of dynamic part", "0"]] }
+        ]
+      },
       plan:
 "== Physical Plan ==\n" +
 "AdaptiveSparkPlan (9)\n" +
@@ -693,11 +777,24 @@ var CASES = [
       submitted: "2026/03/12 10:02:13",
       duration: 91000,
       jobIds: [0],
-      metrics: [
-        ["number of files read", "612"],
-        ["size of files read", "9.8 GiB"],
-        ["number of output rows", "41,382,904"]
-      ],
+      graph: {
+        clusters: {
+          1: { name: "WholeStageCodegen (1)", metrics: [
+            ["duration", "13.1 m", "4.6 s", "8.3 s", "11.6 s", "stage 0.0: task 7"]] }
+        },
+        nodes: [
+          { id: 1, name: "Scan parquet spark_catalog.default.nyc_yellow_trips", metrics: [
+            ["number of output rows", "41,382,904"],
+            ["number of files read", "612"],
+            ["number of partitions read", "1"],
+            ["metadata time", "188 ms"],
+            ["size of files read", "9.8 GiB"],
+            ["scan time", "9.7 m", "3.4 s", "6.1 s", "8.5 s", "stage 0.0: task 7"]] },
+          { id: 2, name: "Filter", cluster: 1, from: [1], metrics: [
+            ["number of output rows", "41,382,904"]] },
+          { id: 3, name: "Project", cluster: 1, from: [2] }
+        ]
+      },
       plan:
 "== Physical Plan ==\n" +
 "AdaptiveSparkPlan (4)\n" +
@@ -723,10 +820,17 @@ var CASES = [
       submitted: "2026/03/12 10:12:50",
       duration: 25000,
       jobIds: [1],
-      metrics: [
-        ["number of output rows", "7,231"],
-        ["written output", "84.2 KiB"]
-      ],
+      graph: {
+        nodes: [
+          { id: 1, name: "LocalTableScan", metrics: [
+            ["number of output rows", "7,231"]] },
+          { id: 2, name: "WriteFiles", from: [1], metrics: [
+            ["number of written files", "8"],
+            ["written output", "84.2 KiB", "9.8 KiB", "10.5 KiB", "11.4 KiB", "stage 1.0: task 98"],
+            ["number of output rows", "7,231"],
+            ["number of dynamic part", "0"]] }
+        ]
+      },
       plan:
 "== Physical Plan ==\n" +
 "AdaptiveSparkPlan (3)\n" +
