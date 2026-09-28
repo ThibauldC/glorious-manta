@@ -135,6 +135,12 @@
     }
     else if (act === "stage") { state.view = { name: "stage", id: Number(value) }; state.sort = null; }
     else if (act === "sql") { state.view = { name: "sql", id: Number(value) }; }
+    else if (act === "gosql" || act === "gostage") {
+      state.tab = act === "gosql" ? "sql" : "stages";
+      state.view = { name: act === "gosql" ? "sql" : "stage", id: Number(value) };
+      state.sort = null;
+      state.visited[state.caseIndex][state.tab] = true;
+    }
     else if (act === "back") { state.view = null; state.sort = null; }
     else if (act === "toggle") { state.open[value] = !state.open[value]; }
     else if (act === "stagetask") {
@@ -407,9 +413,8 @@
     var groups = byStatus(c.jobs, JOB_GROUPS, "SUCCEEDED");
     var tables = groups.map(function (g) {
       var rows = g.rows.map(function (j) {
-        var link = j.link !== undefined ? j.link : j.stageIds[0];
         return '<tr><td>' + j.id + '</td>' +
-          '<td><button type="button" class="spark-link" data-act="stage" data-value="' + link + '">' + esc(j.description) + '</button>' +
+          '<td><button type="button" class="spark-link" data-act="stage" data-value="' + jobStage(j) + '">' + esc(j.description) + '</button>' +
           '<br><span style="color:#888;font-size:11.5px">' + esc(j.group) + '</span></td>' +
           '<td class="mono">' + esc(j.submitted) + '</td>' +
           '<td class="num">' + dur(j.duration) + '</td>' +
@@ -647,12 +652,21 @@
     var attempts = Math.max(stage.tasksTotal, d.tasks.length);
     var shown = Math.min(d.tasks.length, TASK_PAGE);
     var memorySpill = d.memorySpill !== undefined ? d.memorySpill : d.spill;
+    var jobIds = c.jobs.filter(function (j) { return j.stageIds.indexOf(id) !== -1; })
+      .map(function (j) { return j.id; });
+    var queries = c.sql.filter(function (q) {
+      return q.jobIds.some(function (jid) { return jobIds.indexOf(jid) !== -1; });
+    });
 
     return '<p><button type="button" class="spark-link" data-act="back">← Back to ' + (state.tab === "jobs" ? "Jobs" : "Stages") + '</button></p>' +
       '<h3>Details for Stage ' + stage.id + ' (Attempt ' + stage.attempt + ')</h3>' +
       '<ul class="app-summary">' +
         '<li><strong>Total Time Across All Tasks:</strong> ' + dur(d.totalTaskTime) + '</li>' +
         '<li><strong>Locality Level Summary:</strong> ' + esc(d.localitySummary) + '</li>' +
+        (jobIds.length ? '<li><strong>Associated Job Ids:</strong> ' + jobIds.join(", ") + '</li>' : "") +
+        (queries.length ? '<li><strong>Associated SQL Query:</strong> ' + queries.map(function (q) {
+          return '<button type="button" class="spark-link" data-act="gosql" data-value="' + q.id + '">' + q.id + '</button>';
+        }).join(", ") + '</li>' : "") +
         (d.input ? '<li><strong>Input Size / Records:</strong> ' + sizeRecords(d.input, d.inputRecords) + '</li>' : "") +
         (d.output ? '<li><strong>Output Size / Records:</strong> ' + sizeRecords(d.output, d.outputRecords) + '</li>' : "") +
         (d.shuffleRead ? '<li><strong>Shuffle Read Size / Records:</strong> ' + sizeRecords(d.shuffleRead, d.shuffleReadRecords) + '</li>' : "") +
@@ -808,18 +822,32 @@
     return c.sql.filter(function (x) { return x.id === id; })[0];
   }
 
+  function findJob(c, id) {
+    return c.jobs.filter(function (x) { return x.id === id; })[0];
+  }
+
+  // A job's longest stage that ran: where the Jobs table link goes too.
+  function jobStage(j) {
+    return j.link !== undefined ? j.link : j.stageIds[0];
+  }
+
   function sqlDetail(c, id) {
     var q = findQuery(c, id);
     if (!q) return '<p class="empty-note">Query not found.</p>';
 
     var jobs = { RUNNING: [], SUCCEEDED: [], FAILED: [] };
     q.jobIds.forEach(function (jid) {
-      var j = c.jobs.filter(function (x) { return x.id === jid; })[0];
+      var j = findJob(c, jid);
       jobs[(j && j.status) || "SUCCEEDED"].push(jid);
     });
     var jobLines = [["Running Jobs", jobs.RUNNING], ["Succeeded Jobs", jobs.SUCCEEDED], ["Failed Jobs", jobs.FAILED]]
       .filter(function (p) { return p[1].length; })
-      .map(function (p) { return '<li><strong>' + p[0] + ':</strong> ' + p[1].join(", ") + '</li>'; }).join("");
+      .map(function (p) {
+        return '<li><strong>' + p[0] + ':</strong> ' + p[1].map(function (jid) {
+          var j = findJob(c, jid);
+          return j ? '<button type="button" class="spark-link" data-act="gostage" data-value="' + jobStage(j) + '">' + jid + '</button>' : jid;
+        }).join(", ") + '</li>';
+      }).join("");
 
     var props = (q.properties || []).map(function (p) {
       return '<tr><td class="mono">' + esc(p[0]) + '</td><td class="mono">' + esc(p[1]) + '</td></tr>';

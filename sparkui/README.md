@@ -65,7 +65,8 @@ Hovering a node shows its block from the plan text, as Spark does.
 
 ## What the player can do
 
-Switch tabs, drill from Stages into a stage, sort the stage and task tables by any column, open
+Switch tabs, drill from Stages into a stage, jump from a stage to its SQL query and from a
+query's job IDs back to their stages, sort the stage and task tables by any column, open
 the DAG and Event Timeline collapsibles, and read the SQL plan graph and its metrics. Then accuse.
 
 The site tracks which tabs each player opened and mentions it in the verdict, so
