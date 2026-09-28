@@ -18,8 +18,8 @@
     caseIndex: 0,
     tab: "jobs",
     view: null,            // {name:"stage", id:1} | {name:"sql", id:0} | null
-    diagTab: "dataSkew",
-    sort: null,            // {key:"duration", dir:-1}
+    sort: null,            // task table: {key:"duration", dir:-1}
+    stageSort: null,       // stages table, kept while drilling into a stage
     open: {},              // collapsible id -> bool
     showStageTask: false,  // SQL graph: show where each max metric came from
     selected: null,
@@ -33,8 +33,7 @@
     { id: "storage", label: "Storage" },
     { id: "environment", label: "Environment" },
     { id: "executors", label: "Executors" },
-    { id: "sql", label: "SQL / DataFrame" },
-    { id: "diagnosis", label: "Diagnosis" }
+    { id: "sql", label: "SQL / DataFrame" }
   ];
 
   var SETS = {
@@ -56,7 +55,6 @@
     state.visited = cases().map(function () { return {}; });
     state.open = {};
     state.selected = null;
-    state.diagTab = "dataSkew";
     state.screen = "brief";
   }
 
@@ -125,18 +123,19 @@
       state.tab = "jobs";
       state.view = null;
       state.sort = null;
+      state.stageSort = null;
       state.visited[state.caseIndex].jobs = true;
     }
     else if (act === "tab") {
       state.tab = value;
       state.view = null;
       state.sort = null;
+      state.stageSort = null;
       state.visited[state.caseIndex][value] = true;
     }
     else if (act === "stage") { state.view = { name: "stage", id: Number(value) }; state.sort = null; }
     else if (act === "sql") { state.view = { name: "sql", id: Number(value) }; }
     else if (act === "back") { state.view = null; state.sort = null; }
-    else if (act === "diagtab") { state.diagTab = value; }
     else if (act === "toggle") { state.open[value] = !state.open[value]; }
     else if (act === "stagetask") {
       // Relayout in place: a full render would jump the page back to the top.
@@ -144,10 +143,8 @@
       layoutPlanGraph();
       return;
     }
-    else if (act === "sort") {
-      if (state.sort && state.sort.key === value) state.sort.dir *= -1;
-      else state.sort = { key: value, dir: -1 };
-    }
+    else if (act === "sort") { state.sort = toggleSort(state.sort, value); }
+    else if (act === "stagesort") { state.stageSort = toggleSort(state.stageSort, value); }
     else if (act === "accuse") { state.selected = null; state.screen = "accuse"; }
     else if (act === "select") { state.selected = value; }
     else if (act === "resume") { state.screen = "investigate"; }
@@ -169,7 +166,6 @@
         state.view = null;
         state.selected = null;
         state.open = {};
-        state.diagTab = "dataSkew";
       } else {
         state.screen = "debrief";
       }
@@ -196,8 +192,8 @@
       '<div class="kicker">Spark UI Detective</div>' +
       '<h1>Slow Spark jobs. Suspects to name.</h1>' +
       '<p>Each case gives you a story and a Spark UI. Click through the tabs, ' +
-      'drill into stages, sort the task table, read the SQL plan, check what the Fabric ' +
-      'Diagnosis views have to say. When you know what went wrong, make your accusation.</p>' +
+      'drill into stages, sort the tables, read the SQL plan. When you know what went wrong, ' +
+      'make your accusation.</p>' +
       '<p>No timer. No hints. Around five minutes a case.</p>' +
       '<div class="case-sets">' + files + '</div>' +
       '</div></div>';
@@ -227,7 +223,7 @@
       '</div>' +
       '<div class="hint-strip">Investigating <b>' + esc(c.app.id) + '</b>. ' +
       'Everything below behaves like the Spark UI: switch tabs, click a stage to drill in, ' +
-      'sort the task table by clicking a column header.</div>' +
+      'sort a table by clicking a column header.</div>' +
       sparkUI(c);
   }
 
@@ -366,8 +362,7 @@
     if (state.tab === "storage") return storageTab();
     if (state.tab === "environment") return environmentTab(c);
     if (state.tab === "executors") return executorsTab(c);
-    if (state.tab === "sql") return sqlTab(c);
-    return diagnosisTab(c);
+    return sqlTab(c);
   }
 
   function progressCell(done, total, failed, skipped) {
@@ -477,6 +472,42 @@
       '</div>' + execRow + rows + timeAxis(total) + '</div>';
   }
 
+  // Clicking a header sorts descending; clicking it again flips the direction.
+  function toggleSort(sort, key) {
+    if (sort && sort.key === key) return { key: key, dir: -sort.dir };
+    return { key: key, dir: -1 };
+  }
+
+  function sortRows(rows, sort) {
+    if (!sort) return rows;
+    var key = sort.key, dir = sort.dir;
+    return rows.slice().sort(function (a, b) {
+      var x = a[key], y = b[key];
+      if (typeof x === "string" || typeof y === "string") return String(x || "").localeCompare(String(y || "")) * dir;
+      return ((x || 0) - (y || 0)) * dir;
+    });
+  }
+
+  function sortHeader(sort, act, col) {
+    var arrow = "";
+    if (sort && sort.key === col.key) arrow = sort.dir === -1 ? " \u25BC" : " \u25B2";
+    return '<th class="sortable' + (col.num ? " num" : "") + '" data-act="' + act + '" data-value="' +
+      col.key + '">' + col.label + '<span class="arrow">' + arrow + '</span></th>';
+  }
+
+  var STAGE_COLS = [
+    { key: "id", label: "Stage Id" },
+    { key: "description", label: "Description" },
+    { key: "submitted", label: "Submitted" },
+    { key: "duration", label: "Duration", num: true },
+    { key: "tasksTotal", label: "Tasks: Succeeded/Total" },
+    { key: "input", label: "Input", num: true },
+    { key: "output", label: "Output", num: true },
+    { key: "shuffleRead", label: "Shuffle Read", num: true },
+    { key: "shuffleWrite", label: "Shuffle Write", num: true },
+    { key: "spill", label: "Spill (Disk)", num: true }
+  ];
+
   var STAGE_GROUPS = [
     { status: "ACTIVE", label: "Active Stages" },
     { status: "PENDING", label: "Pending Stages" },
@@ -487,7 +518,7 @@
   function stagesTab(c) {
     var groups = byStatus(c.stages, STAGE_GROUPS, "COMPLETE");
     var tables = groups.map(function (g) {
-      var rows = g.rows.map(function (s) {
+      var rows = sortRows(g.rows, state.stageSort).map(function (s) {
         var pending = s.status === "PENDING";
         return '<tr' + (c.stageDetail[s.id] ? ' class="clickable" data-act="stage" data-value="' + s.id + '"' : '') + '>' +
           '<td>' + s.id + '</td>' +
@@ -502,12 +533,9 @@
           '<td class="num">' + (s.spill ? bytes(s.spill) : "") + '</td>' +
           '</tr>';
       }).join("");
+      var head = STAGE_COLS.map(function (col) { return sortHeader(state.stageSort, "stagesort", col); }).join("");
       return '<h4>' + g.label + ' (' + g.rows.length + ')</h4>' +
-        '<table class="spark"><thead><tr>' +
-          '<th>Stage Id</th><th>Description</th><th>Submitted</th><th class="num">Duration</th>' +
-          '<th>Tasks: Succeeded/Total</th><th class="num">Input</th><th class="num">Output</th>' +
-          '<th class="num">Shuffle Read</th><th class="num">Shuffle Write</th><th class="num">Spill (Disk)</th>' +
-        '</tr></thead><tbody>' + rows + '</tbody></table>';
+        '<table class="spark"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table>';
     }).join("");
 
     return '<h3>Stages for All Jobs</h3>' +
@@ -558,15 +586,7 @@
         (execSpill ? '<td class="num">' + (e.spill ? bytes(e.spill) : "") + '</td>' : '') + '</tr>';
     }).join("");
 
-    var tasks = d.tasks.slice();
-    if (state.sort) {
-      var key = state.sort.key, dir = state.sort.dir;
-      tasks.sort(function (a, b) {
-        var x = a[key], y = b[key];
-        if (typeof x === "string" || typeof y === "string") return String(x || "").localeCompare(String(y || "")) * dir;
-        return ((x || 0) - (y || 0)) * dir;
-      });
-    }
+    var tasks = sortRows(d.tasks, state.sort);
 
     var taskCols = [
       { key: "index", label: "Index", type: "num" },
@@ -594,12 +614,8 @@
     if (any(d.tasks, "error")) taskCols.push({ key: "error", label: "Errors", type: "error" });
 
     var head = taskCols.map(function (col) {
-      var arrow = "";
-      if (state.sort && state.sort.key === col.key) arrow = state.sort.dir === -1 ? " ▼" : " ▲";
       var text = col.type === "text" || col.type === "status" || col.type === "error";
-      return '<th class="sortable' + (text ? "" : " num") +
-        '" data-act="sort" data-value="' + col.key + '">' + col.label +
-        '<span class="arrow">' + arrow + '</span></th>';
+      return sortHeader(state.sort, "sort", { key: col.key, label: col.label, num: !text });
     }).join("");
 
     var body = tasks.slice(0, TASK_PAGE).map(function (t) {
@@ -1018,38 +1034,6 @@
     canvas.style.width = width + "px";
     canvas.style.height = height + "px";
     canvas.classList.remove("pending");
-  }
-
-  function diagnosisTab(c) {
-    var panels = [
-      { id: "dataSkew", label: "Data Skew" },
-      { id: "timeSkew", label: "Time Skew" },
-      { id: "executorUsage", label: "Executor Usage Analysis" }
-    ];
-    if (c.diagnosis.advice) panels.push({ id: "advice", label: "Spark Advisor" });
-
-    var tab = c.diagnosis[state.diagTab] ? state.diagTab : "dataSkew";
-    var nav = panels.map(function (p) {
-      var active = tab === p.id;
-      return '<button type="button" class="dtab' + (active ? " active" : "") +
-        '" data-act="diagtab" data-value="' + p.id + '" aria-pressed="' + active + '">' + p.label + '</button>';
-    }).join("");
-
-    var d = c.diagnosis[tab];
-    var rows = (d.rows || []).map(function (r) {
-      return '<tr><td>' + esc(r[0]) + '</td><td class="num mono">' + esc(r[1]) + '</td></tr>';
-    }).join("");
-
-    return '<h3>Diagnosis</h3>' +
-      '<p style="color:#777;font-size:13px;margin-top:-6px">Fabric-specific analysis of the application.</p>' +
-      '<div class="diag-tabs">' + nav + '</div>' +
-      '<div class="diag-card">' +
-        '<span class="pill ' + d.severity.replace("/", "") + '">' + esc(d.severity) + '</span>' +
-        '<h4 style="margin:10px 0 6px">' + esc(d.headline) + '</h4>' +
-        '<p style="color:#555">' + esc(d.detail) + '</p>' +
-        (rows ? '<table class="spark" style="max-width:460px;margin-top:14px"><tbody>' +
-          rows + '</tbody></table>' : "") +
-      '</div>';
   }
 
   render();

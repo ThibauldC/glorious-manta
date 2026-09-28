@@ -19,8 +19,8 @@ three new ones (`set: "new"`).
 
 ## The talk's cases
 
-Their jobs, stages, every task, executors, SQL plans with metrics, and Diagnosis
-panels come straight from the event logs recorded for the talk. Regenerate them with:
+Their jobs, stages, every task, executors, and SQL plans with metrics come straight
+from the event logs recorded for the talk. Regenerate them with:
 
 ```
 python3 sparkui/tools/build_talk_cases.py ~/git/personal/spark-ui-detective
@@ -31,7 +31,7 @@ The script reads `case_0_logs`, `case1_logs_bad`, `case2_mem_bad_attempt2` and
 names (the originals, such as "CASE 1 BAD: standard-rate hot join key", give the answer
 away), masks OneLake workspace and lakehouse GUIDs, and exports only a whitelist of
 Spark properties, since the raw environment holds session tokens and a password.
-Diagnosis skew panels use Fabric's advice events where the log has them. The brief,
+The brief,
 suspects and verdict for each talk case live in `cases.js`, wrapped in `fromLog()`.
 
 `app.js` knows nothing about Spark specifics. It renders whatever `cases.js` gives
@@ -65,9 +65,8 @@ Hovering a node shows its block from the plan text, as Spark does.
 
 ## What the player can do
 
-Switch tabs, drill from Stages into a stage, sort the task table by any column, open
-the DAG and Event Timeline collapsibles, read the SQL plan graph and its metrics, and check the three Fabric
-Diagnosis panels. Then accuse.
+Switch tabs, drill from Stages into a stage, sort the stage and task tables by any column, open
+the DAG and Event Timeline collapsibles, and read the SQL plan graph and its metrics. Then accuse.
 
 The site tracks which tabs each player opened and mentions it in the verdict, so
 somebody who guessed without reading the SQL plan gets told.
