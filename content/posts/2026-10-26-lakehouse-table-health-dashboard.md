@@ -161,10 +161,8 @@ Wait a few minutes before you re-run the collect notebook. The SQL endpoint meta
 
 ## Try it yourself
 
-<!-- TODO: replace with the final repository URL -->
-The notebooks and the Power BI project (`.pbip`) are on [GitHub](https://github.com/thibauldc/fabric-lakehouse-table-health). To set it up:
+The Power BI project (`.pbip`) is on [GitHub](https://github.com/ThibauldC/fabric-monitoring-stuff/tree/main/lakehouse-table-health). To set it up:
 
-1. Import both notebooks into your workspace and fill in the parameter cells.
-2. Schedule the collect notebook. A daily run is enough to build up a trend.
-3. Open `LakehouseTableHealth.pbip` in Power BI Desktop and point the Direct Lake expression in `expressions.tmdl` at your monitoring lakehouse.
-4. Allow the HTML Content custom visual if your tenant asks for it, then publish.
+1. Build your own collect step from the snippets above and schedule it. A daily run is enough to build up a trend. The repository's README lists the columns the report expects in `table_health_snapshots`.
+2. Open `LakehouseTableHealth.pbip` in Power BI Desktop and point the Direct Lake expression in `expressions.tmdl` at the lakehouse that holds `table_health_snapshots`.
+3. Allow the HTML Content custom visual if your tenant asks for it, then publish.
