@@ -72,12 +72,14 @@
       root.dataset.theme = theme;
       localStorage.setItem("theme", theme);
       updateThemeToggle();
+      document.dispatchEvent(new Event("themechange"));
     });
 
     if (!localStorage.getItem("theme")) {
       systemTheme.addEventListener("change", ({ matches }) => {
         root.dataset.theme = matches ? "dark" : "light";
         updateThemeToggle();
+        document.dispatchEvent(new Event("themechange"));
       });
     }
 
@@ -85,8 +87,27 @@
   </script>
   <script type="module">
     if (document.querySelector('.mermaid')) {
-      const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11.17.0/dist/mermaid.esm.min.mjs');
-      mermaid.initialize({ startOnLoad: true, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'neutral' });
+      import('https://cdn.jsdelivr.net/npm/mermaid@11.17.0/dist/mermaid.esm.min.mjs').then(({ default: mermaid }) => {
+        const diagram = document.querySelector('.mermaid');
+        const source = diagram.textContent;
+        const render = () => {
+          const dark = document.documentElement.dataset.theme === 'dark';
+          mermaid.initialize({ startOnLoad: false, theme: 'base', themeVariables: {
+            background: dark ? '#101615' : '#fbf8f2',
+            primaryColor: dark ? '#3a2925' : '#f1ddd6',
+            primaryTextColor: dark ? '#edf0e9' : '#202625',
+            primaryBorderColor: dark ? '#e39a85' : '#a4452d',
+            lineColor: dark ? '#9faaa7' : '#68706d',
+            secondaryColor: dark ? '#26332e' : '#e8eee9',
+            tertiaryColor: dark ? '#202b29' : '#f4f0e8',
+            fontFamily: 'DM Sans, sans-serif'
+          }});
+          diagram.textContent = source;
+          mermaid.run({ nodes: [diagram] });
+        };
+        document.addEventListener('themechange', render);
+        render();
+      }).catch(console.error);
     }
   </script>
 </body>
