@@ -3,7 +3,7 @@ title: A Health Dashboard for Your Fabric Lakehouse Tables
 author: thibauldc
 date: 2026-10-26 19:00:00
 categories: [Microsoft Fabric, Lakehouse, Power BI]
-tags: [microsoft, fabric, lakehouse, delta, power-bi]
+tags: [microsoft, fabric, lakehouse, delta lake, powerbi]
 ---
 
 At FabCon, Sam Debruyn pointed me to `sys.sp_get_table_health_metrics`, a system stored procedure on the lakehouse **SQL analytics endpoint**. You pass it a Delta table and it tells you whether the table's file layout needs maintenance. Thanks, Sam.

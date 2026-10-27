@@ -170,6 +170,7 @@ h1 em, h2 em { color: var(--accent); font-family: var(--serif); font-weight: 400
 .tag-iac { --tag-base: #986a39; }
 .tag-security { --tag-base: #677544; }
 .tag-purview { --tag-base: #4c7971; }
+.tag-delta-lake { --tag-base: #9c5568; }
 
 .arrow { padding-top: .1rem; color: var(--muted); font-size: 1.25rem; }
 .split-callout { display: grid; grid-template-columns: 1fr 1fr; gap: 5rem; margin: 8rem 0 3rem; padding: clamp(2rem, 5vw, 4rem); border-radius: 1.4rem; background: var(--ink); color: var(--paper); }
