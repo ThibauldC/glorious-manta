@@ -73,9 +73,11 @@ Index work: 10 × 0.2 RU    + 2.0 RU
 Illustrative create charge  7.0 RU
 ```
 
-<iframe src="/visuals/cosmos-db-ru/write-cost.html" title="Illustrative write charge: 5 RU for the document plus 2 RU for ten indexed terms equals 7 RU" width="100%" height="700" loading="lazy"></iframe>
+Move the slider to change the number of indexed terms and see the example charge change. The document contribution stays at 5 RU in this model.
 
-[Open the write-cost visual on its own](/visuals/cosmos-db-ru/write-cost.html).
+<iframe src="/visuals/cosmos-db-ru/write-cost.html" title="Interactive illustrative write-cost model: adjust indexed terms to see the create charge" width="100%" height="850" loading="lazy"></iframe>
+
+[Open the interactive write-cost visual on its own](/visuals/cosmos-db-ru/write-cost.html).
 
 **The 0.2 RU coefficient belongs to this example.** Do not turn it into a universal indexing tariff or assume one JSON property equals one indexed term. Arrays and nested structures can produce more index work.
 
@@ -166,9 +168,11 @@ Suppose your application performs this workload in one second. These are **illus
 
 With 1,000 RU/s provisioned, that is 49% of capacity and 510 RU/s of arithmetic headroom.
 
-<iframe src="/visuals/cosmos-db-ru/workload-budget.html" title="Throughput budget: 200 RU/s for reads, 140 for creates and 150 for queries, totaling 490 of 1,000 RU/s" width="100%" height="850" loading="lazy"></iframe>
+Try your own request rates and charges in the calculator. Enter **session-consistency read charges** as the baseline, then choose a consistency level. The bars show demand against the capacity you enter; this is a throughput estimate, not an Azure price quote.
 
-[Open the throughput-budget visual on its own](/visuals/cosmos-db-ru/workload-budget.html).
+<iframe src="/visuals/cosmos-db-ru/workload-budget.html" title="Interactive RU calculator: change request rates, request charges, consistency and capacity to move the throughput bars" width="100%" height="1450" loading="lazy"></iframe>
+
+[Open the RU calculator on its own](/visuals/cosmos-db-ru/workload-budget.html).
 
 Stronger consistency also changes this calculation. With **strong or bounded staleness**, budget about twice the read charge for point reads and queries. Keeping the create assumption unchanged:
 
@@ -188,9 +192,11 @@ For a simplified **manual-throughput** example, assume Cosmos DB spreads 1,200 R
 
 Your application requests 700 RU/s on partition A and 100 RU/s on each of B and C. The total demand is 900 RU/s, below 1,200, but A exceeds its own allocation.
 
-<iframe src="/visuals/cosmos-db-ru/hot-partition.html" title="Hot partition example: partition A requests 700 of 400 RU/s while B and C each request 100 of 400 RU/s" width="100%" height="850" loading="lazy"></iframe>
+Adjust each partition's requested demand with the sliders. Compare each moving bar with the 400 RU/s marker, even if total demand stays below 1,200 RU/s.
 
-[Open the hot-partition visual on its own](/visuals/cosmos-db-ru/hot-partition.html).
+<iframe src="/visuals/cosmos-db-ru/hot-partition.html" title="Interactive hot-partition example: move demand bars against each partition's 400 RU/s budget" width="100%" height="1150" loading="lazy"></iframe>
+
+[Open the interactive hot-partition visual on its own](/visuals/cosmos-db-ru/hot-partition.html).
 
 You can receive **HTTP 429: Request rate too large** on A despite spare capacity elsewhere. The SDK retries throttled requests according to its retry policy, which can increase end-to-end latency. Do not treat spare total capacity as a guarantee that every request will succeed without throttling.
 

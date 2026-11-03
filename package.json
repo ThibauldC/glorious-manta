@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "build": "eleventy",
-    "start": "eleventy --serve"
+    "start": "eleventy --serve",
+    "visuals:cosmos-ru": "node scripts/render-cosmos-ru.mjs",
+    "test": "node --test tests/cosmos-db-ru.test.js"
   },
   "devDependencies": {
     "@11ty/eleventy": "3.1.6",
