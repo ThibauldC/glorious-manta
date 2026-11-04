@@ -7,7 +7,7 @@ tags: [azure, cosmosdb, performance, cost]
 ---
 A point read in Azure Cosmos DB can cost 1 RU. A SQL query for the same item costs more. To size your database, measure the cost of each operation and multiply it by your request rate.
 
-The examples use **Azure Cosmos DB for NoSQL**, one region and **session consistency**. The reference figures below come from Microsoft; the workload and pagination numbers are illustrative. No live-account measurements appear in this post.
+The examples use **Azure Cosmos DB for NoSQL**, one region and **session consistency**. I tested small workloads in West Europe on **4 November 2026**, using manual throughput, free-tier manual throughput and serverless. I label Microsoft's reference calculations and the planning assumptions apart from those measurements. You can inspect the [recorded charges and test notes](/visuals/cosmos-db-ru/measurements-2026-11-04.json).
 
 ## 1. Databases, containers and request units
 
@@ -36,7 +36,7 @@ Cosmos DB keeps replicas of your data. Your consistency level sets the guarantee
 - **Strong:** a read returns the latest committed version of the item, regardless of the client session. Cosmos DB must coordinate replication to provide that guarantee.
 - **Bounded staleness:** across regions, you allow a configured lag in versions or time, whichever limit Cosmos DB reaches first. For example, a multi-region account can allow up to 100,000 versions or 300 seconds. Reads return the newest data in the region within that bound. In one region, reads return the latest local data.
 
-For **strong and bounded staleness**, Cosmos DB reads from two replicas instead of one. Budget **twice the read RUs** for point reads and queries compared with session consistency. The same write operation has the same RU charge across consistency levels, though replication can affect latency.
+For **strong and bounded staleness**, Cosmos DB reads from two replicas instead of one. Budget **twice the read RUs** for point reads and queries compared with session consistency. In the provisioned-account tests, a 1 KB point read increased from **1 to 2 RU**, and the equivalent SQL query increased from **2.93 to 5.86 RU** with either stronger level. The same write operation has the same RU charge across consistency levels, though replication can affect latency.
 
 ## 2. Point reads: use the item's address
 
@@ -85,9 +85,11 @@ WHERE c.id = 'order-123'
 
 You ask for the same item, but Cosmos DB executes a query: it prepares the query, looks up index entries, evaluates the predicates and loads the matching document. The partition-key filter avoids searching other partitions; it does not turn SQL into an SDK point read.
 
-Microsoft's [point reads versus queries example](https://devblogs.microsoft.com/cosmosdb/point-reads-versus-queries/) reports **a little under 3 RU** for this query pattern versus **1 RU** for a 1 KB point read. That is close to three times the charge, or about 2 RU extra per request. The post also lists 2.3 RU as a query starting point. Treat those as published reference figures, not a guaranteed minimum or a measurement of your data.
+Microsoft's [point reads versus queries example](https://devblogs.microsoft.com/cosmosdb/point-reads-versus-queries/) reports **a little under 3 RU** for this query pattern versus **1 RU** for a 1 KB point read. That is close to three times the charge, or about 2 RU extra per request. The post also lists 2.3 RU as a query starting point; it does not establish a permanent minimum for your data.
 
-Use the same `container` to compare your own query charge:
+My live test returned **1 RU for the point read and 2.93 RU for the equivalent SQL query**, in three repetitions on each throughput mode. SQL cost **2.93 times as much**, or **1.93 RU extra per request**. A document with a 100 KB compact JSON body cost **9.95 RU** to point-read. These measurements support the reference values above; they do not define a per-KB formula.
+
+The measured query used `@id = 'size-1024'` and `@customer = 'customer-42'`. The short example below uses `order-123`; replace that ID with an item in your own container to compare charges:
 
 ```python
 charges = []
@@ -124,7 +126,7 @@ SELECT c.id, c.total FROM c WHERE c.status = 'open'
 
 Cosmos DB can route the first query to one customer's logical partition. For the second, it searches the index on each relevant physical partition and merges the results. Both queries might return ten orders; the second can consume more RUs because Cosmos DB does more work to find them.
 
-<iframe src="/visuals/cosmos-db-ru/query-cost.html" title="Query cost: compare a point read, a scoped SQL query, and a query across partitions" width="100%" height="1050" loading="lazy"></iframe>
+<iframe src="/visuals/cosmos-db-ru/query-cost.html" title="Measured query RU charges, pagination costs, and an unmeasured partition fan-out diagram" width="100%" height="1700" loading="lazy"></iframe>
 
 [Open the query-cost visual](/visuals/cosmos-db-ru/query-cost.html).
 
@@ -132,30 +134,61 @@ An index on a filter path can help Cosmos DB find candidate items without scanni
 
 For your own RU comparison, run both queries against the same data with the same indexes and consistency. Use `partition_key="customer-42"` for the scoped query. For the all-customer query, omit that option and set `enable_cross_partition_query=True`. Capture the response charges as above and consume the full result set. Inspect **Query Stats** in Data Explorer or enable `populate_query_metrics=True` in Python to compare documents retrieved with documents returned.
 
-To measure fan-out costs, use a live account with representative items and enough data to span multiple physical partitions. Keep the indexing policy fixed. A single-partition test cannot show the extra cost of searching several partitions; the diagram explains that work without assigning an unmeasured RU total.
+For a small-container comparison, I seeded 200 orders across ten customers and selected the same ten open orders. I ran this SQL with and without an SDK partition-key scope:
+
+```sql
+SELECT c.id, c.total FROM c
+WHERE c.status = 'open' AND STARTSWITH(c.id, 'order-')
+```
+
+`STARTSWITH` excludes the size-test items. With `partition_key="customer-00"`, the query cost **3.31 RU**. Omitting that option and setting `enable_cross_partition_query=True` cost **3.19 RU**. Scoping did not save RUs in this case. I kept the containers small to limit costs; this test does **not** establish the cost of multi-physical-partition fan-out. The fan-out drawing shows the mechanism, not a measured multiplier.
+
+I also ran these queries with `partition_key="customer-00"`:
+
+```sql
+-- 3.16 RU, ten results
+SELECT c.id, c.total FROM c WHERE c.status = 'open'
+
+-- 4.70 RU, the same ten results
+SELECT c.id, c.total FROM c WHERE LOWER(c.status) = 'open'
+
+-- 3.28 RU, return the ten full documents
+SELECT * FROM c WHERE c.status = 'open'
+
+-- 2.89 RU, no results
+SELECT * FROM c WHERE c.status = 'missing'
+```
+
+Inspect the query metrics before attributing a difference to a document scan: the recorded metrics for both status filters reported ten retrieved documents.
 
 ### You can calculate RU yourself
 
 You can **sum measured response charges** and calculate workload demand. You cannot derive an exact query charge from the SQL text or result count alone.
 
-For this illustrative execution:
+For the pagination test, I ran this SQL with `partition_key="customer-00"`:
+
+```sql
+SELECT c.id, c.total FROM c
+```
+
+It returned 20 orders. With `max_item_count=5`, the response charges were:
 
 | Response | Charge |
 |---|---:|
-| Page 1 | 3.2 RU |
-| Page 2 | 4.1 RU |
-| Page 3 | 2.7 RU |
-| **Complete query** | **10.0 RU** |
+| Page 1 | 2.92 RU |
+| Page 2 | 2.82 RU |
+| Page 3 | 2.82 RU |
+| Page 4 | 2.82 RU |
+| **Complete query** | **11.38 RU** |
 
 In Python, collect the `x-ms-request-charge` header through `response_hook`. A query can issue several service requests, including requests that return no items. Count those charges too; the last response header alone does not give you the total.
 
 ```python
 charges = []
 results = container.query_items(
-    query="SELECT c.id, c.total FROM c WHERE c.status = @status",
-    parameters=[{"name": "@status", "value": "open"}],
-    partition_key="customer-42",
-    max_item_count=100,
+    query="SELECT c.id, c.total FROM c",
+    partition_key="customer-00",
+    max_item_count=5,
     response_hook=lambda headers, _: charges.append(
         float(headers["x-ms-request-charge"])
     ),
@@ -171,7 +204,15 @@ print(f"Complete query: {sum(charges):.2f} RU")
 
 `max_item_count=100` sets an upper bound per page, not a promise of 100 items. Cosmos DB can split an execution because of response size, execution time or available throughput. You can receive an empty page before the query finishes.
 
-Smaller pages can add requests and overhead, so page size can change the total RU charge. Keep paging settings fixed when comparing queries. There is no fixed “RU per page” tariff.
+Smaller pages can add requests and overhead, so page size can change the total RU charge. For the same query and 20 results, I measured:
+
+| Maximum items per page | Responses | Total charge |
+|---|---:|---:|
+| 100 | 1 | 3.29 RU |
+| 5 | 4 | 11.38 RU |
+| 1 | 20 | 54.50 RU |
+
+Requesting one item per page cost about **16.6 times** as much as fetching these results in one response. Keep paging settings fixed when comparing queries. There is no fixed “RU per page” tariff.
 
 For a Next button, keep the **continuation token** instead of rerunning the query from the start. This example reads one service page within one customer's partition. On the next application request, pass back the token with the same query, parameters and partition key:
 
@@ -179,10 +220,9 @@ For a Next button, keep the **continuation token** instead of rerunning the quer
 saved_token = None  # Use the token from the previous application request.
 charges = []
 pages = container.query_items(
-    query="SELECT c.id, c.total FROM c WHERE c.status = @status",
-    parameters=[{"name": "@status", "value": "open"}],
-    partition_key="customer-42",
-    max_item_count=100,
+    query="SELECT c.id, c.total FROM c",
+    partition_key="customer-00",
+    max_item_count=5,
     response_hook=lambda headers, _: charges.append(
         float(headers["x-ms-request-charge"])
     ),
@@ -197,7 +237,23 @@ print(f"This page: {sum(charges):.2f} RU")
 
 Continue paging while `next_token` has a value, even if `items` is empty. This example stays within one partition; check the SDK's continuation-token support before extending it to cross-partition or aggregate queries.
 
-With `OFFSET 10000 LIMIT 100`, Cosmos DB still processes the 10,000 skipped items. Larger offsets cost more RUs. Continuation tokens preserve progress and avoid repeating that skip work. Sum charges across the pages your user reads; stopping after one page avoids fetching the remaining pages.
+With `OFFSET 10000 LIMIT 100`, Cosmos DB still processes the 10,000 skipped items. In the 200-order test, I ran these as separate queries with `enable_cross_partition_query=True` and no `partition_key` option:
+
+```sql
+-- 2.93 RU
+SELECT c.id FROM c WHERE STARTSWITH(c.id, 'order-')
+OFFSET 0 LIMIT 5
+
+-- 5.32 RU
+SELECT c.id FROM c WHERE STARTSWITH(c.id, 'order-')
+OFFSET 100 LIMIT 5
+
+-- 7.47 RU
+SELECT c.id FROM c WHERE STARTSWITH(c.id, 'order-')
+OFFSET 190 LIMIT 5
+```
+
+Each query returns five IDs; a larger offset costs more RUs. Without `ORDER BY`, these examples do not guarantee a stable item order. Continuation tokens preserve progress and avoid repeating the skip work. Sum charges across the pages your user reads; stopping after one page avoids fetching the remaining pages.
 
 ## 4. Writes: store the document and update its index
 
@@ -228,7 +284,11 @@ Microsoft's [RU consumption guide](https://learn.microsoft.com/en-us/azure/cosmo
 | Replace, two modified terms | 5 + 5 RU for old/new document + 2 × 0.2 RU removal + 2 × 0.2 RU insertion | 10.8 RU |
 | Patch, two modified terms | Same 10.8 RU + 2 × 0.4 RU patch work | 11.6 RU |
 
-The coefficients belong to these examples. Do not use them as a universal write-cost formula. Patch reduces the payload you send and avoids a client-side read/modify/replace cycle, but **does not guarantee fewer RUs per write** than replace.
+The coefficients belong to these examples. Do not use them as a universal write-cost formula. My 1 KB test item had twenty nested attributes, two changing values and a padding string. With default indexing, create cost **15.38 RU**, replace cost **11.38 RU**, and patch cost **11.70 RU**. Replace cost less than create here because most indexed values stayed unchanged.
+
+With a targeted policy that included `customerId`, `status` and `total` and excluded other user paths, creating the same item cost **7 RU**, about **54.5% less** than default indexing. The item still has the same request-body size; I changed the indexing policy.
+
+Patch reduces the payload you send and avoids a client-side read/modify/replace cycle, but **does not guarantee fewer RUs per write** than replace.
 
 A Python patch for changing two indexed values looks like this. It requires write permission and modifies the item, so use a test container:
 
@@ -303,6 +363,8 @@ An operation's RU charge measures resource consumption. Your throughput mode det
 
 You can enable Cosmos DB's **lifetime free tier** on one account per subscription, at account creation. It covers the first **1,000 RU/s and 25 GB of storage** across that account. You pay for usage beyond those allowances. Free tier supports manual and autoscale provisioned throughput; **serverless does not qualify**.
 
+Free tier changes the bill, not the request charge. My free-tier and paid manual accounts returned the same RUs for the tested operations. Both used a shared **400 RU/s** database, rather than reserving the full free allowance.
+
 This is separate from the Azure free account's time-limited credits and allowances. The example below assumes one region and no other resources consuming the free-tier allowance.
 
 ### West Europe: serverless versus manual throughput
@@ -328,6 +390,27 @@ For example, continuous serverless requests cost `490 × 3,600 × 730 ÷ 1,000,0
 Without free tier, serverless has a lower request cost below about **191.5 million RU/month** at these rates and this manual capacity. For a 490 RU/s active workload, you reach the break-even after about **108.5 active hours per month**. Capacity, bursts and partitioning still constrain which mode fits.
 
 These estimates exclude taxes, currency conversion, negotiated discounts, network transfer, extra backup options and other features. Additional regions change the provisioned-capacity bill. Recheck the [pricing calculator](https://azure.microsoft.com/en-us/pricing/calculator/) for your account rather than multiplying one response's RU charge by the region count.
+
+### Live test: throughput mode changed billing, not these request charges
+
+With `azure-cosmos` **4.14.2**, the three account modes returned these charges for the same operations. The free-tier account used manual throughput:
+
+| Operation | Paid manual | Free-tier manual | Serverless |
+|---|---:|---:|---:|
+| Point read, about 1 KB item | 1 RU | 1 RU | 1 RU |
+| Equivalent SQL, one item | 2.93 RU | 2.93 RU | 2.93 RU |
+| Create, default indexing | 15.38 RU | 15.38 RU | 15.38 RU |
+| Replace, two changed values | 11.38 RU | 11.38 RU | 11.38 RU |
+| Patch, same two changes | 11.70 RU | 11.70 RU | 11.70 RU |
+| Create, targeted indexing | 7 RU | 7 RU | 7 RU |
+
+These are request-charge measurements, not an invoice comparison. I used a shared **400 RU/s** database in each provisioned account, no autoscale, and one region without zone redundancy. The default provisioned-account consistency was Strong; the baseline clients requested Session. Separate read clients tested Strong and Bounded Staleness. The serverless account used Session.
+
+The euro retail rates during the run were **€0.0072 per 100 RU/s-hour** and **€0.2738 per million serverless RUs**. One full billed hour of paid manual capacity would cost **€0.0288**. The serverless workload recorded **3,488.05 RU**, about **€0.000955** in request charges. Allowing two full paid capacity hours, €0.01 for storage/transfer and a 30% tax/rounding margin gives **€0.089**, below the €10 ceiling. This is an estimate, not a verified final charge. Cost Management had no posted rows for the experiment at query time.
+
+I removed all seven accounts created during the experiment, including unused attempts. Azure Resource Manager returned `ResourceNotFound` for each account during the final cleanup check. I left the existing resource group and its other resources unchanged.
+
+The [measurement record](/visuals/cosmos-db-ru/measurements-2026-11-04.json) includes raw response charges, indexing policies, collection caveats and resource cleanup status. The manual and serverless collectors finished the data operations but hit SDK reporting/cleanup-callback errors; their saved response charges remain available. The free-tier rerun completed the collector. None of these small datasets validates multi-physical-partition fan-out or hot-partition throttling.
 
 ## Measure first, then change one thing
 

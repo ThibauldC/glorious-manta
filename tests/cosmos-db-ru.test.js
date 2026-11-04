@@ -105,6 +105,60 @@ test("article Python examples run against a paged test double", () => {
   assert.equal(result.status, 0, result.stderr || result.error?.message);
 });
 
+test("live response evidence supports the article comparisons and confirms cleanup", async () => {
+  const record = JSON.parse(await readFile(new URL("../public/visuals/cosmos-db-ru/measurements-2026-11-04.json", import.meta.url), "utf8"));
+  assert.equal(record.runs.length, 3);
+  for (const { mode, result, arm_verified_configuration: config } of record.runs) {
+    assert.equal(config.enableFreeTier, mode === "free");
+    if (mode === "serverless") assert(config.capabilities.some(item => item.name === "EnableServerless"));
+    else assert.equal(config.capacity.totalThroughputLimit, 400);
+    const sample = name => result.samples.find(item => item.name === name);
+    const total = result.samples.reduce((sum, item) => sum + item.ru, 0);
+    assert(Math.abs(total - result.metered_ru) < 1e-6);
+    assert.equal(result.samples.reduce((sum, item) => sum + item.responses.length, 0), result.metered_responses);
+    assert(result.metered_ru < 20000);
+    for (let repeat = 0; repeat < 3; repeat++) {
+      assert.equal(sample(`point_read_1024_bytes_${repeat}`).ru, 1);
+      assert.equal(sample(`point_read_102400_bytes_${repeat}`).ru, 9.95);
+      assert.equal(sample(`equivalent_sql_${repeat}`).ru, 2.93);
+      assert.equal(sample(`write_create_${repeat}`).ru, 15.38);
+      assert.equal(sample(`write_replace_${repeat}`).ru, 11.38);
+      assert.equal(sample(`write_patch_${repeat}`).ru, 11.7);
+      assert.equal(sample(`targeted_index_create_${repeat}`).ru, 7);
+    }
+    assert.equal(sample("query_full_document").ru, 3.28);
+    assert.equal(sample("query_zero_results").ru, 2.89);
+    assert.equal(sample("pagination_max_100").ru, 3.29);
+    assert.equal(sample("pagination_max_5").ru.toFixed(2), "11.38");
+    assert.equal(sample("pagination_max_1").ru, 54.5);
+    assert.deepEqual(sample("pagination_max_5").responses.map(page => page.ru), [2.92, 2.82, 2.82, 2.82]);
+    for (const [name, ru] of [["query_scoped_same_ten_results", 3.31], ["query_unscoped_same_ten_results", 3.19],
+      ["query_indexed_status", 3.16], ["query_lower_status", 4.7], ["offset_0_limit_5", 2.93],
+      ["offset_100_limit_5", 5.32], ["offset_190_limit_5", 7.47]]) assert.equal(sample(name).ru, ru);
+    if (mode !== "serverless") {
+      for (const level of ["Strong", "BoundedStaleness"]) {
+        assert.equal(sample(`consistency_point_${level}`).ru, 2);
+        assert.equal(sample(`consistency_query_${level}`).ru, 5.86);
+      }
+    }
+  }
+  assert.equal(record.all_accounts_deleted_verified, true);
+  assert(record.resource_lifecycle.every(account => account.deleted_verified));
+  assert(record.cost_estimate.conservative_total_eur < 0.1);
+  assert.equal(record.cost_estimate.actual_invoice_verified, false);
+  assert(article.includes("**11.38 RU**"));
+  assert(article.includes("| 1 | 20 | 54.50 RU |"));
+  const sql = [...article.matchAll(/```sql\n([\s\S]*?)```/g)]
+    .map(match => match[1].replace(/--[^\n]*/g, "").replace(/\s+/g, " ").trim()).join(" ");
+  for (const query of [
+    "SELECT c.id, c.total FROM c WHERE c.status = 'open' AND STARTSWITH(c.id, 'order-')",
+    "SELECT c.id, c.total FROM c WHERE LOWER(c.status) = 'open'",
+    "SELECT * FROM c WHERE c.status = 'open'",
+    "SELECT * FROM c WHERE c.status = 'missing'",
+    ...[0, 100, 190].map(offset => `SELECT c.id FROM c WHERE STARTSWITH(c.id, 'order-') OFFSET ${offset} LIMIT 5`),
+  ]) assert(sql.includes(query), `Article must show the measured SQL: ${query}`);
+});
+
 test("public exports have only local controls, a matching CSP, and no network dependencies", async () => {
   for (const name of ["write-cost", "query-cost", "workload-budget"]) {
     const html = await readFile(new URL(`../public/visuals/cosmos-db-ru/${name}.html`, import.meta.url), "utf8");

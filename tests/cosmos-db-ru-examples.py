@@ -50,7 +50,12 @@ class Container:
         return {"id": "order-123", "total": 42}
 
     def query_items(self, **options):
-        assert options["partition_key"] == "customer-42"
+        if options["query"] == "SELECT c.id, c.total FROM c":
+            assert options["partition_key"] == "customer-00"
+            assert options["max_item_count"] == 5
+            assert "parameters" not in options
+        else:
+            assert options["partition_key"] == "customer-42"
         return Query(options)
 
     def patch_item(self, **options):

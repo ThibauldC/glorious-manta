@@ -68,12 +68,13 @@
 <p>Replace and patch show alternative updates to the original item. The Python call requires write permission and changes stored data.</p>
 </section>
 <figure>
-<h2>Microsoft's illustrative 1 KB write costs</h2>
-<ve-bars max="12" label="Illustrative create 7 RU, replace 10.8 RU, patch 11.6 RU; not measured on this item"><ve-bar value="7">Create</ve-bar><ve-bar value="10.8">Replace</ve-bar><ve-bar value="11.6" hot>Patch</ve-bar></ve-bars>
-<figcaption><span class="fig-n">Fig. 4</span>Microsoft uses ten terms for create and two changed terms for replace/patch; patch does not guarantee a cheaper write.</figcaption>
+<h2>Measured write charges in RU</h2>
+<ve-bars max="16" label="Measured 1 KB item with default indexing: create 15.38 RU, replace 11.38 RU, patch 11.70 RU"><ve-bar value="15.38">Create</ve-bar><ve-bar value="11.38">Replace</ve-bar><ve-bar value="11.7" hot>Patch</ve-bar></ve-bars>
+<figcaption><span class="fig-n">Fig. 4</span>For the same two changes, patch cost 11.70 RU and replace cost 11.38 RU; the 15.38 RU create also indexed twenty nested attributes.</figcaption>
 </figure>
-<p>These published examples use a 1 KB document, not the shortened JSON above. Create: 5 + 10 × 0.2 = 7 RU. Replace: 5 + 5 + 2 × 0.2 + 2 × 0.2 = 10.8 RU. Patch adds 2 × 0.4 = 0.8 RU in this model. Measure your own charges.</p>
+<p>The measured 1 KB document includes twenty nested attributes and a padding string, beyond the shortened JSON above. A policy that indexed customerId, status and total and excluded other user paths lowered create to 7 RU. Default and targeted policies stored the same item.</p>
+<p>These are measured charges from 4 November 2026, not a per-term tariff. Microsoft's separate illustrative calculations use ten terms for create and two changed terms for replace/patch. Those coefficients do not predict this document's charges.</p>
 <noscript><p>JavaScript is off. All three operations appear above.</p></noscript>
-<section class="sources" aria-label="Sources"><p><a href="https://learn.microsoft.com/en-us/azure/cosmos-db/understand-request-unit-consumption">Microsoft: Understanding RU consumption</a> · illustrative coefficients, not a service tariff.</p></section>
+<section class="sources" aria-label="Sources"><p><a href="measurements-2026-11-04.json">Live measurements and collection notes</a> · West Europe, azure-cosmos 4.14.2; three repetitions in each tested throughput mode.</p><p><a href="https://learn.microsoft.com/en-us/azure/cosmos-db/understand-request-unit-consumption">Microsoft: Understanding RU consumption</a>.</p></section>
 </main><script type="module">/* COSMOS_RUNTIME */</script></body>
 </html>
