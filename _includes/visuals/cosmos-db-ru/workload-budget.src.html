@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" data-register="instrument">
+<head>
+<title>RU workload calculator</title>
+<link rel="stylesheet" href="kit.css" data-ve-kit>
+<style>/* COSMOS_STYLE */</style>
+</head>
+<body data-visual="workload-budget"><main>
+<header><p class="eyebrow">Cosmos DB · one region</p><h1>490 RU/s demand against 1,000 RU/s capacity</h1><p class="lead">Multiply request rates by measured charges. The initial inputs illustrate a workload; they do not come from a benchmark.</p></header>
+<form novalidate><fieldset disabled>
+<div class="ru-input-grid">
+<label for="reads">Point reads per second<input id="reads" name="reads" type="number" min="0" max="1000000" step="1" value="200" required></label>
+<label for="readRu">RU per point read (session)<input id="readRu" name="readRu" type="number" min="0" max="1000000" step="any" value="1" required></label>
+<label for="writes">Creates per second<input id="writes" name="writes" type="number" min="0" max="1000000" step="1" value="20" required></label>
+<label for="writeRu">RU per create<input id="writeRu" name="writeRu" type="number" min="0" max="1000000" step="any" value="7" required></label>
+<label for="queries">Queries per second<input id="queries" name="queries" type="number" min="0" max="1000000" step="1" value="10" required></label>
+<label for="queryRu">RU per query (session, all pages)<input id="queryRu" name="queryRu" type="number" min="0" max="1000000" step="any" value="15" required></label>
+<label for="capacity">Provisioned capacity (RU/s)<input id="capacity" name="capacity" type="number" min="1" max="1000000" step="1" value="1000" required></label>
+<label for="multiplier">Read consistency<select id="multiplier" name="multiplier"><option value="1">Session / eventual / consistent prefix</option><option value="2">Strong / bounded staleness (2×)</option></select></label>
+</div><button type="reset">Reset example</button></fieldset>
+<p id="input-error" role="alert" hidden>Enter values from 0 to 1,000,000; capacity must be at least 1 RU/s. Rates and capacity must be whole numbers.</p>
+</form>
+<noscript><p>JavaScript is off. The initial 490 RU/s example appears below.</p></noscript>
+<figure id="workload-result">
+<h2>Demand versus provisioned capacity</h2>
+<div class="budget-row"><p>Point reads <span class="budget-value">200 / 1,000 RU/s</span></p><div class="track" role="meter" aria-label="Point reads" aria-valuemin="0" aria-valuemax="1200" aria-valuenow="200"><span class="fill" style="width:16.667%"></span><span class="limit" style="left:83.333%"></span></div></div>
+<div class="budget-row"><p>Creates <span class="budget-value">140 / 1,000 RU/s</span></p><div class="track" role="meter" aria-label="Creates" aria-valuemin="0" aria-valuemax="1200" aria-valuenow="140"><span class="fill" style="width:11.667%"></span><span class="limit" style="left:83.333%"></span></div></div>
+<div class="budget-row"><p>Queries <span class="budget-value">150 / 1,000 RU/s</span></p><div class="track" role="meter" aria-label="Queries" aria-valuemin="0" aria-valuemax="1200" aria-valuenow="150"><span class="fill" style="width:12.5%"></span><span class="limit" style="left:83.333%"></span></div></div>
+<div class="budget-row"><p>Combined demand <span class="budget-value">490 / 1,000 RU/s</span></p><div class="track" role="meter" aria-label="Combined demand" aria-valuemin="0" aria-valuemax="1200" aria-valuenow="490"><span class="fill" style="width:40.833%"></span><span class="limit" style="left:83.333%"></span></div></div>
+<p id="workload-status" role="status">490 RU/s total · 49% of capacity · 510 RU/s headroom.</p>
+<figcaption>Bars start at zero and share one scale. Each vertical marker shows provisioned capacity; the combined bar sums the three operation types.</figcaption>
+</figure>
+<p>Use session-consistency charges as inputs, including all responses for each query. Strong and bounded staleness double the read estimates here; they leave create charges unchanged.</p>
+<p>This is a throughput estimate. Bursts and hot partitions can throttle below the total budget. The calculator does not estimate your Azure bill.</p>
+</main><script type="module">/* COSMOS_RUNTIME */</script></body>
+</html>

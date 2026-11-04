@@ -9,100 +9,68 @@ export function calculateWorkload({ reads, readRu, writes, writeRu, queries, que
   return { demand, total, utilization: total / capacity * 100, headroom: capacity - total };
 }
 
-export function calculateWrite(terms) {
-  if (!Number.isInteger(terms) || terms < 0 || terms > 50) throw new RangeError("Use 0–50 indexed terms.");
-  return 5 + terms * 0.2;
-}
-
-export function calculatePartitions(demand) {
-  if (demand.length !== 3 || !demand.every(value => Number.isFinite(value) && value >= 0 && value <= 1200)) {
-    throw new RangeError("Use three partition demands from 0 to 1,200 RU/s.");
-  }
-  return { total: demand.reduce((sum, value) => sum + value, 0), over: demand.map(value => value > 400) };
-}
-
 const format = new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format;
-const formatTick = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format;
-
-function updateBars(values, limit, scale, labels) {
-  document.querySelectorAll(".am-lim").forEach((row, index) => {
-    const value = values[index];
-    row.classList.toggle("is-over", value > limit);
-    row.querySelector(".am-lim-head > span").textContent = labels[index];
-    row.querySelector(".am-lim-val").textContent = `${format(value)} / ${format(limit)} RU/s`;
-    row.querySelector(".am-lim-fill").style.width = `${value / scale * 100}%`;
-    row.querySelector(".am-lim-mark").style.left = `${limit / scale * 100}%`;
-    row.querySelector(".am-lim-ticks").replaceChildren(...Array.from({ length: 7 }, (_, index) => {
-      const tick = document.createElement("span");
-      tick.textContent = formatTick(scale * index / 6);
-      tick.style.left = `${index / 6 * 100}%`;
-      return tick;
-    }));
-    const track = row.querySelector(".am-lim-track");
-    track.setAttribute("role", "meter");
-    track.setAttribute("aria-label", labels[index]);
-    track.setAttribute("aria-valuemin", "0");
-    track.setAttribute("aria-valuemax", String(scale));
-    track.setAttribute("aria-valuenow", String(value));
-    track.setAttribute("aria-valuetext", `${format(value)} RU/s requested; ${format(limit)} RU/s budget`);
-  });
-}
 
 function updateWorkload(form) {
   const valid = form.checkValidity();
   document.querySelector("#input-error").hidden = valid;
-  document.querySelector("#panel-B").hidden = !valid;
+  document.querySelector("#workload-result").hidden = !valid;
   if (!valid) return;
   const values = Object.fromEntries([...form.querySelectorAll("input, select")].map(input => [input.name, Number(input.value)]));
   const result = calculateWorkload(values);
-  updateBars([...result.demand, result.total], values.capacity, Math.max(values.capacity, result.total) * 1.2,
-    ["Point reads", "Creates", "Queries", "Combined demand"]);
+  const scale = Math.max(values.capacity, result.total) * 1.2;
+  document.querySelectorAll(".budget-row").forEach((row, index) => {
+    const value = [...result.demand, result.total][index];
+    row.classList.toggle("is-over", value > values.capacity);
+    row.querySelector(".budget-value").textContent = `${format(value)} / ${format(values.capacity)} RU/s`;
+    row.querySelector(".fill").style.width = `${value / scale * 100}%`;
+    row.querySelector(".limit").style.left = `${values.capacity / scale * 100}%`;
+    const track = row.querySelector(".track");
+    track.setAttribute("aria-valuemax", String(scale));
+    track.setAttribute("aria-valuenow", String(value));
+    track.setAttribute("aria-valuetext", `${format(value)} RU/s requested; ${format(values.capacity)} RU/s budget`);
+  });
   const balance = result.headroom < 0
     ? `${format(-result.headroom)} RU/s above capacity`
     : `${format(result.headroom)} RU/s headroom`;
   document.querySelector("#workload-status").textContent =
     `${format(result.total)} RU/s total · ${format(result.utilization)}% of capacity · ${balance}.`;
-}
-
-function updateWrite(form) {
-  const terms = form.elements.terms.valueAsNumber;
-  const total = calculateWrite(terms);
-  document.querySelector("#terms-value").value = String(terms);
-  document.querySelector("#panel-B h2").textContent = `5 RU + ${format(total - 5)} RU = ${format(total)} RU`;
-  const cells = document.querySelectorAll(".am-kv dd");
-  cells[1].textContent = `${terms} terms × 0.2 RU = ${format(total - 5)} RU`;
-  cells[2].textContent = `${format(total)} RU`;
-  document.querySelector("#write-status").textContent = `${terms} indexed terms: ${format(total)} RU per create in this example.`;
-}
-
-function updatePartitions(form) {
-  const keys = ["a", "b", "c"];
-  const demand = keys.map(key => form.elements[key].valueAsNumber);
-  const result = calculatePartitions(demand);
-  keys.forEach((key, index) => { document.querySelector(`#${key}-value`).value = `${format(demand[index])} RU/s`; });
-  updateBars(demand, 400, 1200, ["Physical partition A", "Physical partition B", "Physical partition C"]);
-  const hot = keys.filter((key, index) => result.over[index]).map(key => key.toUpperCase());
-  const summary = hot.length ? `Above the per-partition budget: ${hot.join(", ")}.` : "No partition exceeds its budget.";
-  document.querySelector("#partition-status").textContent = `${format(result.total)} RU/s requested in total. ${summary}`;
-  const callout = document.querySelector(".am-callout");
-  callout.classList.toggle("am-callout--warn", hot.length > 0);
-  callout.classList.toggle("am-callout--ok", hot.length === 0);
-  callout.querySelector(".am-callout-title").textContent = hot.length ? `Potential throttling on ${hot.join(", ")}` : "Within each partition's budget";
-  callout.querySelector(".am-callout-body p").textContent =
-    "Each partition has 400 RU/s in this example. Spare capacity elsewhere does not raise that allocation. Real allocations can change with dynamic autoscale or throughput redistribution.";
+  document.querySelector("h1").textContent = `${format(result.total)} RU/s demand against ${format(values.capacity)} RU/s capacity`;
 }
 
 if (typeof document !== "undefined") {
+  const tablist = document.querySelector('[role="tablist"]');
+  if (tablist) {
+    const tabs = [...tablist.querySelectorAll('[role="tab"]')];
+    const select = tab => tabs.forEach(candidate => {
+      const active = candidate === tab;
+      candidate.setAttribute("aria-selected", String(active));
+      candidate.tabIndex = active ? 0 : -1;
+      const panel = document.getElementById(candidate.getAttribute("aria-controls"));
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("tabindex", "0");
+      panel.hidden = !active;
+    });
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => select(tab));
+      tab.addEventListener("keydown", event => {
+        const target = { ArrowRight: (index + 1) % tabs.length, ArrowLeft: (index + tabs.length - 1) % tabs.length, Home: 0, End: tabs.length - 1 }[event.key];
+        if (target === undefined) return;
+        event.preventDefault();
+        select(tabs[target]);
+        tabs[target].focus();
+      });
+    });
+    select(tabs[0]);
+    tablist.hidden = false;
+  }
   const form = document.querySelector("form");
-  const update = {
-    "workload-budget": updateWorkload,
-    "write-cost": updateWrite,
-    "hot-partition": updatePartitions,
-  }[document.body.dataset.visual];
-  form.querySelector("fieldset").disabled = false;
-  form.addEventListener("input", () => update(form));
-  form.addEventListener("change", () => update(form));
-  form.addEventListener("submit", event => event.preventDefault());
-  form.addEventListener("reset", () => requestAnimationFrame(() => update(form)));
-  update(form);
+  if (form) {
+    form.querySelector("fieldset").disabled = false;
+    form.addEventListener("input", () => updateWorkload(form));
+    form.addEventListener("change", () => updateWorkload(form));
+    form.addEventListener("submit", event => event.preventDefault());
+    form.addEventListener("reset", () => requestAnimationFrame(() => updateWorkload(form)));
+    updateWorkload(form);
+  }
 }

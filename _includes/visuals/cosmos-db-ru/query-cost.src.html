@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en" data-register="paper">
+<head>
+<title>Query RUs pay for finding and processing items</title>
+<link rel="stylesheet" href="kit.css" data-ve-kit>
+<style>/* COSMOS_STYLE */</style>
+</head>
+<body><main>
+<header><p class="eyebrow">Cosmos DB · read work</p><h1>SQL adds work to an item lookup</h1></header>
+<figure>
+<ve-bars unit="RU" max="3" label="Microsoft reference: 1 RU point read versus a little under 3 RU for equivalent SQL; SQL bar rounded to 3"><ve-bar value="1">Read</ve-bar><ve-bar value="3" hot>SQL ≈</ve-bar></ve-bars>
+<figcaption><span class="fig-n">Fig. 1</span>Microsoft reports 1 RU for a 1 KB point read and a little under 3 RU for the equivalent SQL pattern; the SQL bar rounds to 3.</figcaption>
+</figure>
+<figure>
+<div class="frame"><svg class="ve-svg" viewBox="0 0 760 330" role="img" aria-label="A point read fetches by ID and partition key. Scoped SQL adds a query engine and index lookup before loading the item.">
+<path class="ve-e" d="M185 65H550"/><text class="ve-el" x="325" y="49">fetch by address</text>
+<path class="ve-e" d="M185 235H250"/><text class="ve-el" x="217" y="210">plan</text>
+<path class="ve-e is-hot" d="M420 235H490"/><text class="ve-el" x="455" y="210">seek</text>
+<path class="ve-e" d="M575 270V305H660V103"/><text class="ve-el r" x="588" y="290">load item</text>
+<g class="ve-n"><rect class="sh" x="15" y="25" width="170" height="80"/><text x="100" y="55">Point read</text><text class="sub" x="100" y="80">id + customerId</text></g>
+<g class="ve-n"><rect class="sh" x="550" y="25" width="195" height="80"/><text x="647" y="55">Stored item</text><text class="sub" x="647" y="80">order-123</text></g>
+<g class="ve-n"><rect class="sh" x="15" y="195" width="170" height="80"/><text x="100" y="225">Scoped SQL</text><text class="sub" x="100" y="250">id + key filter</text></g>
+<g class="ve-n is-key"><rect class="sh" x="250" y="195" width="170" height="80"/><text x="335" y="225">Query engine</text><text class="sub" x="335" y="250">filter</text></g>
+<g class="ve-n"><rect class="sh" x="490" y="195" width="170" height="80"/><text x="575" y="225">Index</text><text class="sub" x="575" y="250">find candidate</text></g>
+</svg></div>
+<figcaption><span class="fig-n">Fig. 2</span>The partition-key equality filter scopes SQL to one partition; Cosmos DB still runs the query engine.</figcaption>
+</figure>
+<figure>
+<h2>Without a partition key, Cosmos DB searches more partitions</h2>
+<div class="frame"><svg class="ve-svg" viewBox="0 0 760 310" role="img" aria-label="One-customer query searches partition A. All-customer query searches A, B and C, then merges results. Each partition performs index and document work.">
+<path class="ve-e" d="M200 70H485"/><text class="ve-el" x="340" y="54">route one customer</text>
+<path class="ve-e is-hot" d="M200 230H350V120H485"/>
+<path class="ve-e is-hot" d="M350 230V185H485"/>
+<path class="ve-e is-hot" d="M350 230V260H485"/>
+<text class="ve-el" x="342" y="211">fan out</text>
+<g class="ve-n"><rect class="sh" x="15" y="30" width="185" height="80"/><text x="107" y="60">One customer</text><text class="sub" x="107" y="85">customerId + status</text></g>
+<g class="ve-n is-key"><rect class="sh" x="15" y="195" width="185" height="80"/><text x="107" y="225">All customers</text><text class="sub" x="107" y="250">status = "open"</text></g>
+<g class="ve-n"><rect class="sh" x="485" y="30" width="260" height="105"/><text x="615" y="60">Physical partition A</text><text class="sub" x="615" y="90">seek index → load matches</text><text class="sub" x="615" y="115">includes customer-42</text></g>
+<g class="ve-n"><rect class="sh" x="485" y="155" width="260" height="60"/><text x="615" y="174">Physical partition B</text><text class="sub" x="615" y="198">seek index → load matches</text></g>
+<g class="ve-n"><rect class="sh" x="485" y="235" width="260" height="60"/><text x="615" y="254">Physical partition C</text><text class="sub" x="615" y="278">seek index → load matches</text></g>
+</svg></div>
+<figcaption><span class="fig-n">Fig. 3</span>Across three physical partitions, Cosmos DB performs local query work three times and merges the results.</figcaption>
+</figure>
+<p>Three partitions do not imply three times the total RUs. Candidate counts, document sizes and query operators affect each partition's work. We have no live measurements for these two queries.</p>
+<p>To compare: fix the data, indexing, consistency and page settings; run each query to completion; sum its response charges. Check retrieved versus returned document counts to spot excess loading.</p>
+<section class="sources" aria-label="Sources"><p><a href="https://devblogs.microsoft.com/cosmosdb/point-reads-versus-queries/">Microsoft: Point reads versus queries</a> · <a href="https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/query-metrics">Query metrics</a>. Reference figures, not a benchmark of this container.</p></section>
+</main><script type="module">/* COSMOS_RUNTIME */</script></body>
+</html>

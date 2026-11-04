@@ -33,9 +33,9 @@ npm start
 
 ## Cosmos DB visuals
 
-The Cards-theme drafts and calculator code live in `_includes/visuals/cosmos-db-ru`. The public, self-contained HTML exports live in `public/visuals/cosmos-db-ru`.
+The Visual Explainer sources (`*.src.html`), shared styles and local controls live in `_includes/visuals/cosmos-db-ru`. The public, self-contained HTML exports live in `public/visuals/cosmos-db-ru`. The write visual has Create/Replace/Patch tabs; the query visual shows lookup and fan-out work. The workload calculator retains editable rates and charges.
 
-After editing a draft, `interactive.js`, or `interactive.css`, regenerate and check them:
+After editing a source, `interactive.js`, or `interactive.css`, regenerate and check them:
 
 ```sh
 npm run visuals:cosmos-ru
@@ -43,6 +43,6 @@ npm test
 npm run build
 ```
 
-Regeneration uses the installed `answer-me-with-html` CLI at `~/.agents/skills/answer-me-with-html/scripts/am.mjs`. Set `AM_CLI` to use a different path. Normal site builds use the committed exports and do not need the renderer.
+Regeneration uses the Visual Explainer CLI at `~/.pi/agent/git/github.com/nicobailon/visual-explainer/plugins/visual-explainer/kit/render.mjs`. Set `VE_CLI` to override it. The script stages sources in `~/.agent/diagrams` (or `VISUAL_EXPLAINER_OUTPUT_DIR`). Render those staged sources with the Visual Explainer tool for its browser checks. Normal site builds use the committed exports and do not need the renderer.
 
-The export step removes the renderer's branding, toolbar, embedded draft and feedback runtime. It keeps Cards styling and adds only the local calculator code, with an updated script hash in the Content Security Policy. No comments, replies, analytics or network calls are included. Inputs stay in the browser; bar transitions respect reduced-motion settings.
+The export step removes the kit runtime and external font links. It keeps the figures and adds the local controls with a script hash in the Content Security Policy. Public visuals contain no feedback UI or network calls. Tabs support arrow keys, Home and End; without JavaScript, all write examples remain visible. Inputs stay in the browser and respect reduced-motion settings. Tests also check the Python article examples with a mock Cosmos container; no live credentials are required.
