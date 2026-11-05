@@ -100,15 +100,16 @@ test("West Europe monthly costs match the article", () => {
   assert.equal((manual / 0.305 / (490 * 3600 / 1e6)).toFixed(1), "108.5");
 });
 
-test("article introduces data layout and RU metering before request factors and provisioning", () => {
+test("article builds a provisioning budget before explaining costs and keeps experiment detail in the appendix", () => {
   const headings = [...article.matchAll(/^## (.+)$/gm)].map(match => match[1]);
   assert.deepEqual(headings, [
-    "1. How data is laid out in Cosmos DB",
-    "2. What is an RU, and how is it calculated?",
-    "3. What affects the charge of a request?",
-    "4. How much throughput should you provision?",
-    "5. How does that capacity become a bill?",
-    "Start with the workload, then validate the provisioned capacity",
+    "Understand the capacity you are buying",
+    "How data is laid out in Cosmos DB",
+    "1. Build a first throughput budget",
+    "2. Estimate the cost of each application operation",
+    "3. Check capacity per physical partition",
+    "4. Choose a throughput mode and starting capacity",
+    "5. Validate the configuration before production",
     "Appendix: examples and test notes",
     "Sources",
   ]);
@@ -120,9 +121,14 @@ test("article introduces data layout and RU metering before request factors and 
   assert(appendix.includes("measurements-2026-11-04.json"));
   assert(main.includes("**deterministic**"));
   assert(main.includes("does **not** provide a universal formula"));
-  assert(main.includes("**Yes, consistency affects the RU charge.**"));
+  assert(main.includes("Strong and bounded-staleness reads consult two replicas"));
   assert(main.includes("same write operation stays unchanged"));
-  const layout = main.slice(main.indexOf("## 1."), main.indexOf("## 2."));
+  assert(main.indexOf("**490 RU/s**") < main.indexOf("## 2."));
+  for (const charge of ["4.70 RU", "3.28 RU", "2.89 RU", "3.31 RU", "3.19 RU", "11.70 RU", "54.50 RU"]) {
+    assert(!main.includes(charge), `Keep the detailed experiment result in the appendix: ${charge}`);
+    assert(appendix.includes(charge));
+  }
+  const layout = main.slice(main.indexOf("## How data is laid out"), main.indexOf("## 1."));
   const pointReads = main.slice(main.indexOf("### Point reads:"), main.indexOf("### SQL queries:"));
   const queries = main.slice(main.indexOf("### SQL queries:"), main.indexOf("### Writes:"));
   assert(layout.includes("/visuals/cosmos-db-ru/data-layout.html"));
