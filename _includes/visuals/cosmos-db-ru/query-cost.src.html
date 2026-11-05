@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" data-register="paper">
+<head>
+<title>A point read skips the SQL query engine</title>
+<link rel="stylesheet" href="kit.css" data-ve-kit>
+<style>/* COSMOS_STYLE */</style>
+</head>
+<body><main>
+<header><p class="eyebrow">Point read versus SQL</p><h1>SQL adds query work</h1></header>
+<figure>
+<div class="frame"><svg class="ve-svg" viewBox="0 0 760 330" role="img" aria-label="A point read fetches by ID and partition key. Scoped SQL adds a query engine and index lookup before loading the item.">
+<path class="ve-e" d="M185 65H550"/><text class="ve-el" x="325" y="49">fetch by address</text>
+<path class="ve-e" d="M185 235H250"/><text class="ve-el" x="217" y="210">plan</text>
+<path class="ve-e is-hot" d="M420 235H490"/><text class="ve-el" x="455" y="210">seek</text>
+<path class="ve-e" d="M575 270V305H660V105"/><text class="ve-el r" x="588" y="290">load item</text>
+<g class="ve-n"><rect class="sh" x="15" y="25" width="170" height="80"/><text x="100" y="55">Point read</text><text class="sub" x="100" y="80">id + customerId</text></g>
+<g class="ve-n"><rect class="sh" x="550" y="25" width="195" height="80"/><text x="647" y="55">Stored item</text><text class="sub" x="647" y="80">order-123</text></g>
+<g class="ve-n"><rect class="sh" x="15" y="195" width="170" height="80"/><text x="100" y="225">Scoped SQL</text><text class="sub" x="100" y="250">id + key filter</text></g>
+<g class="ve-n is-key"><rect class="sh" x="250" y="195" width="170" height="80"/><text x="335" y="225">Query engine</text><text class="sub" x="335" y="250">filter</text></g>
+<g class="ve-n"><rect class="sh" x="490" y="195" width="170" height="80"/><text x="575" y="225">Index</text><text class="sub" x="575" y="250">find candidate</text></g>
+</svg></div>
+<figcaption><span class="fig-n">Fig. 1</span>A partition-key filter scopes SQL to one logical partition, but Cosmos DB still runs the query engine before loading the item.</figcaption>
+</figure>
+<section class="sources" aria-label="Sources"><p><a href="https://devblogs.microsoft.com/cosmosdb/point-reads-versus-queries/">Microsoft: Point reads versus queries</a>.</p></section>
+</main><script type="module">/* COSMOS_RUNTIME */</script></body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en" data-register="paper">
+<head>
+<title>Writes change the document and its index</title>
+<link rel="stylesheet" href="kit.css" data-ve-kit>
+<style>/* COSMOS_STYLE */</style>
+</head>
+<body><main>
+<header><p class="eyebrow">Cosmos DB · write work</p><h1>Store the item, maintain its index</h1><p class="lead">An indexed term associates a path and value with an item. Change the value and Cosmos DB updates that entry.</p></header>
+<div class="tabs" role="tablist" aria-label="Write operation" hidden>
+<button type="button" id="tab-create" role="tab" aria-selected="true" aria-controls="create">Create</button>
+<button type="button" id="tab-replace" role="tab" aria-selected="false" aria-controls="replace" tabindex="-1">Replace</button>
+<button type="button" id="tab-patch" role="tab" aria-selected="false" aria-controls="patch" tabindex="-1">Patch</button>
+</div>
+<section id="create" aria-labelledby="tab-create">
+<h2>Create adds the document and its entries</h2>
+<figure>
+<div class="mechanism">
+<div><h3>Incoming item</h3><pre>{
+  "id": "order-123",
+  "customerId": "customer-42",
+  "status": "open",
+  "total": 42
+}</pre></div>
+<div class="action">Cosmos DB stores the item<br>↓<br>and adds index entries</div>
+<div><h3>Example index entries</h3><dl class="terms"><dt>/status → "open"</dt><dd>points to order-123</dd><dt>/total → 42</dt><dd>points to order-123</dd></dl></div>
+</div>
+<figcaption><span class="fig-n">Fig. 1</span>A query for status = "open" can use the path/value entry to find this item.</figcaption>
+</figure>
+<p>The picture shows two entries from a shortened item. Nested fields and arrays can add entries. These labels simplify the index format.</p>
+</section>
+<section id="replace" aria-labelledby="tab-replace">
+<h2>Replace sends the full new document</h2>
+<figure>
+<div class="mechanism">
+<pre>{
+  "id": "order-123",
+  "customerId": "customer-42",
+  "status": "shipped",
+  "total": 45
+}</pre>
+<div class="action">Cosmos DB replaces the item<br>↓<br>and changes two indexed terms</div>
+<div class="changes"><div><h3>Remove old entries</h3><del>/status → "open"</del><br><del>/total → 42</del></div><div><h3>Add new entries</h3><ins>/status → "shipped"</ins><br><ins>/total → 45</ins></div></div>
+</div>
+<figcaption><span class="fig-n">Fig. 2</span>Cosmos DB removes the old values and inserts the new values; it keeps the unchanged terms.</figcaption>
+</figure>
+<p>Send the complete replacement, including fields you want to keep. Use an ETag condition when you must prevent overwriting another writer's changes.</p>
+</section>
+<section id="patch" aria-labelledby="tab-patch">
+<h2>Patch sends the changed paths</h2>
+<figure>
+<div class="mechanism">
+<pre>container.patch_item(
+    item="order-123",
+    partition_key="customer-42",
+    patch_operations=[
+        {"op": "set", "path": "/status",
+         "value": "shipped"},
+        {"op": "set", "path": "/total",
+         "value": 45},
+    ],
+)</pre>
+<div class="action">Cosmos DB applies the patch<br>↓<br>and changes the same index entries</div>
+<div class="changes"><div><h3>Remove old entries</h3><del>/status → "open"</del><br><del>/total → 42</del></div><div><h3>Add new entries</h3><ins>/status → "shipped"</ins><br><ins>/total → 45</ins></div></div>
+</div>
+<figcaption><span class="fig-n">Fig. 3</span>Patch reduces the request payload; Cosmos DB still maintains the document and its index.</figcaption>
+</figure>
+<p>Replace and patch show alternative updates to the original item. The Python call requires write permission and changes stored data.</p>
+</section>
+<figure>
+<h2>Measured write charges in RU</h2>
+<ve-bars max="16" label="Measured 1 KB item with default indexing: create 15.38 RU, replace 11.38 RU, patch 11.70 RU"><ve-bar value="15.38">Create</ve-bar><ve-bar value="11.38">Replace</ve-bar><ve-bar value="11.7" hot>Patch</ve-bar></ve-bars>
+<figcaption><span class="fig-n">Fig. 4</span>For the same two changes, patch cost 11.70 RU and replace cost 11.38 RU; the 15.38 RU create also indexed twenty nested attributes.</figcaption>
+</figure>
+<p>The measured 1 KB document includes twenty nested attributes and a padding string, beyond the shortened JSON above. A policy that indexed customerId, status and total and excluded other user paths lowered create to 7 RU. Default and targeted policies stored the same item.</p>
+<p>These are measured charges from 4 November 2026, not a per-term tariff. Microsoft's separate illustrative calculations use ten terms for create and two changed terms for replace/patch. Those coefficients do not predict this document's charges.</p>
+<noscript><p>JavaScript is off. All three operations appear above.</p></noscript>
+<section class="sources" aria-label="Sources"><p><a href="measurements-2026-11-04.json">Live measurements and collection notes</a> · West Europe, azure-cosmos 4.14.2; three repetitions in each tested throughput mode.</p><p><a href="https://learn.microsoft.com/en-us/azure/cosmos-db/understand-request-unit-consumption">Microsoft: Understanding RU consumption</a>.</p></section>
+</main><script type="module">/* COSMOS_RUNTIME */</script></body>
+</html>

@@ -21,6 +21,7 @@ export default function (config) {
     "sparkui/talk-cases.js": "spark-ui/talk-cases.js",
     "sparkui/style.css": "spark-ui/style.css",
   });
+  config.ignores.add("public/**");
   config.ignores.add("README.md");
   config.ignores.add("sparkui/README.md");
 
