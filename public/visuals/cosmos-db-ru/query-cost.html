@@ -3,7 +3,7 @@
 <head>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-h+Ap14n9vcwvcE2JCGpNUqGCbtif0+vYsk2u2iX5wv4='; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Query RUs pay for finding and processing items</title>
+<title>A point read skips the SQL query engine</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f172a'/%3E%3Cpath d='M18 40V24l14-8 14 8v16l-14 8-14-8Z' fill='none' stroke='%23fbbf24' stroke-width='4' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%2338bdf8'/%3E%3C/svg%3E">
 <meta charset="utf-8">
 <style data-ve-kit>
@@ -391,55 +391,22 @@ input:invalid { border-color: var(--risk); }
     <pattern id="ve-w-off" width="10" height="10" patternUnits="userSpaceOnUse"><rect x="1.5" y="1.5" width="7" height="7" rx="1.5" style="fill:none;stroke:var(--text-dim)"/></pattern>
   </defs>
 </svg><main>
-<header><p class="eyebrow">Cosmos DB · read work</p><h1>SQL adds work to an item lookup</h1></header>
-<figure>
-<h2>Measured charges in RU</h2>
-<svg class="ve-bars" viewBox="0 0 240 52" role="img" aria-label="Measured on 4 November 2026: point read 1 RU; equivalent SQL 2.93 RU"><text y="12">Read</text><rect x="84" y="5" width="33.33" height="14" rx="2"/><text x="125.33" y="12">1</text><text y="40">SQL</text><rect class="hot" x="84" y="33" width="97.67" height="14" rx="2"/><text x="189.67000000000002" y="40">2.93</text></svg>
-<figcaption><span class="fig-n">Fig. 1</span>The 1 KB item cost 1 RU to point-read and 2.93 RU through SQL, in three repetitions per mode with Session consistency.</figcaption>
-</figure>
+<header><p class="eyebrow">Point read versus SQL</p><h1>SQL adds query work</h1></header>
 <figure>
 <div class="frame"><svg class="ve-svg" viewBox="0 0 760 330" role="img" aria-label="A point read fetches by ID and partition key. Scoped SQL adds a query engine and index lookup before loading the item.">
 <path class="ve-e" d="M185 65H550"/><text class="ve-el" x="325" y="49">fetch by address</text>
 <path class="ve-e" d="M185 235H250"/><text class="ve-el" x="217" y="210">plan</text>
 <path class="ve-e is-hot" d="M420 235H490"/><text class="ve-el" x="455" y="210">seek</text>
-<path class="ve-e" d="M575 270V305H660V103"/><text class="ve-el r" x="588" y="290">load item</text>
+<path class="ve-e" d="M575 270V305H660V105"/><text class="ve-el r" x="588" y="290">load item</text>
 <g class="ve-n"><rect class="sh" x="15" y="25" width="170" height="80"/><text x="100" y="55">Point read</text><text class="sub" x="100" y="80">id + customerId</text></g>
 <g class="ve-n"><rect class="sh" x="550" y="25" width="195" height="80"/><text x="647" y="55">Stored item</text><text class="sub" x="647" y="80">order-123</text></g>
 <g class="ve-n"><rect class="sh" x="15" y="195" width="170" height="80"/><text x="100" y="225">Scoped SQL</text><text class="sub" x="100" y="250">id + key filter</text></g>
 <g class="ve-n is-key"><rect class="sh" x="250" y="195" width="170" height="80"/><text x="335" y="225">Query engine</text><text class="sub" x="335" y="250">filter</text></g>
 <g class="ve-n"><rect class="sh" x="490" y="195" width="170" height="80"/><text x="575" y="225">Index</text><text class="sub" x="575" y="250">find candidate</text></g>
 </svg></div>
-<figcaption><span class="fig-n">Fig. 2</span>The partition-key equality filter scopes SQL to one partition; Cosmos DB still runs the query engine.</figcaption>
+<figcaption><span class="fig-n">Fig. 1</span>A partition-key filter scopes SQL to one logical partition, but Cosmos DB still runs the query engine before loading the item.</figcaption>
 </figure>
-<figure>
-<h2>A function changed the charge for the same ten results</h2>
-<svg class="ve-bars" viewBox="0 0 240 52" role="img" aria-label="Measured query charges in RU: indexed status equality 3.16; LOWER(status) equality 4.70"><text y="12">Equality</text><rect x="84" y="5" width="63.2" height="14" rx="2"/><text x="155.2" y="12">3.16</text><text y="40">LOWER()</text><rect class="hot" x="84" y="33" width="94" height="14" rx="2"/><text x="186" y="40">4.7</text></svg>
-<figcaption><span class="fig-n">Fig. 3</span>Within one customer partition, status equality cost 3.16 RU and LOWER(status) cost 4.70 RU; both retrieved ten documents.</figcaption>
-</figure>
-<figure>
-<h2>Smaller pages added requests for the same twenty results</h2>
-<svg class="ve-bars" viewBox="0 0 240 80" role="img" aria-label="Measured total query charges in RU: max 100 items per page 3.29; max 5 items 11.38; max 1 item 54.50"><text y="12">Max 100</text><rect x="84" y="5" width="5.98" height="14" rx="2"/><text x="97.98" y="12">3.29</text><text y="40">Max 5</text><rect x="84" y="33" width="20.69" height="14" rx="2"/><text x="112.69" y="40">11.38</text><text y="68">Max 1</text><rect class="hot" x="84" y="61" width="99.09" height="14" rx="2"/><text x="191.09" y="68">54.5</text></svg>
-<figcaption><span class="fig-n">Fig. 4</span>One response cost 3.29 RU, four responses cost 11.38 RU, and twenty responses cost 54.50 RU for the same query and items.</figcaption>
-</figure>
-<figure>
-<h2>Fan-out adds partition work; this drawing is unmeasured</h2>
-<div class="frame"><svg class="ve-svg" viewBox="0 0 760 310" role="img" aria-label="One-customer query searches partition A. All-customer query searches A, B and C, then merges results. Each partition performs index and document work.">
-<path class="ve-e" d="M200 70H485"/><text class="ve-el" x="340" y="54">route one customer</text>
-<path class="ve-e is-hot" d="M200 230H350V120H485"/>
-<path class="ve-e is-hot" d="M350 230V185H485"/>
-<path class="ve-e is-hot" d="M350 230V260H485"/>
-<text class="ve-el" x="342" y="211">fan out</text>
-<g class="ve-n"><rect class="sh" x="15" y="30" width="185" height="80"/><text x="107" y="60">One customer</text><text class="sub" x="107" y="85">customerId + status</text></g>
-<g class="ve-n is-key"><rect class="sh" x="15" y="195" width="185" height="80"/><text x="107" y="225">All customers</text><text class="sub" x="107" y="250">status = "open"</text></g>
-<g class="ve-n"><rect class="sh" x="485" y="30" width="260" height="105"/><text x="615" y="60">Physical partition A</text><text class="sub" x="615" y="90">seek index → load matches</text><text class="sub" x="615" y="115">includes customer-42</text></g>
-<g class="ve-n"><rect class="sh" x="485" y="155" width="260" height="60"/><text x="615" y="174">Physical partition B</text><text class="sub" x="615" y="198">seek index → load matches</text></g>
-<g class="ve-n"><rect class="sh" x="485" y="235" width="260" height="60"/><text x="615" y="254">Physical partition C</text><text class="sub" x="615" y="278">seek index → load matches</text></g>
-</svg></div>
-<figcaption><span class="fig-n">Fig. 5</span>Across three physical partitions, Cosmos DB performs local query work three times and merges the results.</figcaption>
-</figure>
-<p>Three partitions do not imply three times the total RUs. The small-container test cost 3.31 RU with an explicit customer scope and 3.19 RU without it, for the same ten results. That test does not measure multi-physical-partition fan-out.</p>
-<p>To compare: fix the data, indexing, consistency and page settings; run each query to completion; sum its response charges. Check retrieved versus returned document counts to spot excess loading.</p>
-<section class="sources" aria-label="Sources"><p><a href="measurements-2026-11-04.json">Live measurements and collection notes</a> · West Europe, azure-cosmos 4.14.2, Session consistency, 4 November 2026. The response charges match across the tested paid manual, free-tier manual and serverless modes. The fan-out diagram is conceptual.</p><p><a href="https://devblogs.microsoft.com/cosmosdb/point-reads-versus-queries/">Microsoft: Point reads versus queries</a> · <a href="https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/query-metrics">Query metrics</a>.</p></section>
+<section class="sources" aria-label="Sources"><p><a href="https://devblogs.microsoft.com/cosmosdb/point-reads-versus-queries/">Microsoft: Point reads versus queries</a>.</p></section>
 </main><script type="module">
 export function calculateWorkload({ reads, readRu, writes, writeRu, queries, queryRu, capacity, multiplier = 1 }) {
   if (![reads, readRu, writes, writeRu, queries, queryRu].every(value => Number.isFinite(value) && value >= 0)

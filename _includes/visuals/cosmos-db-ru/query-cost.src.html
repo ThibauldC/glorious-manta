@@ -1,59 +1,26 @@
 <!doctype html>
 <html lang="en" data-register="paper">
 <head>
-<title>Query RUs pay for finding and processing items</title>
+<title>A point read skips the SQL query engine</title>
 <link rel="stylesheet" href="kit.css" data-ve-kit>
 <style>/* COSMOS_STYLE */</style>
 </head>
 <body><main>
-<header><p class="eyebrow">Cosmos DB · read work</p><h1>SQL adds work to an item lookup</h1></header>
-<figure>
-<h2>Measured charges in RU</h2>
-<ve-bars max="3" label="Measured on 4 November 2026: point read 1 RU; equivalent SQL 2.93 RU"><ve-bar value="1">Read</ve-bar><ve-bar value="2.93" hot>SQL</ve-bar></ve-bars>
-<figcaption><span class="fig-n">Fig. 1</span>The 1 KB item cost 1 RU to point-read and 2.93 RU through SQL, in three repetitions per mode with Session consistency.</figcaption>
-</figure>
+<header><p class="eyebrow">Point read versus SQL</p><h1>SQL adds query work</h1></header>
 <figure>
 <div class="frame"><svg class="ve-svg" viewBox="0 0 760 330" role="img" aria-label="A point read fetches by ID and partition key. Scoped SQL adds a query engine and index lookup before loading the item.">
 <path class="ve-e" d="M185 65H550"/><text class="ve-el" x="325" y="49">fetch by address</text>
 <path class="ve-e" d="M185 235H250"/><text class="ve-el" x="217" y="210">plan</text>
 <path class="ve-e is-hot" d="M420 235H490"/><text class="ve-el" x="455" y="210">seek</text>
-<path class="ve-e" d="M575 270V305H660V103"/><text class="ve-el r" x="588" y="290">load item</text>
+<path class="ve-e" d="M575 270V305H660V105"/><text class="ve-el r" x="588" y="290">load item</text>
 <g class="ve-n"><rect class="sh" x="15" y="25" width="170" height="80"/><text x="100" y="55">Point read</text><text class="sub" x="100" y="80">id + customerId</text></g>
 <g class="ve-n"><rect class="sh" x="550" y="25" width="195" height="80"/><text x="647" y="55">Stored item</text><text class="sub" x="647" y="80">order-123</text></g>
 <g class="ve-n"><rect class="sh" x="15" y="195" width="170" height="80"/><text x="100" y="225">Scoped SQL</text><text class="sub" x="100" y="250">id + key filter</text></g>
 <g class="ve-n is-key"><rect class="sh" x="250" y="195" width="170" height="80"/><text x="335" y="225">Query engine</text><text class="sub" x="335" y="250">filter</text></g>
 <g class="ve-n"><rect class="sh" x="490" y="195" width="170" height="80"/><text x="575" y="225">Index</text><text class="sub" x="575" y="250">find candidate</text></g>
 </svg></div>
-<figcaption><span class="fig-n">Fig. 2</span>The partition-key equality filter scopes SQL to one partition; Cosmos DB still runs the query engine.</figcaption>
+<figcaption><span class="fig-n">Fig. 1</span>A partition-key filter scopes SQL to one logical partition, but Cosmos DB still runs the query engine before loading the item.</figcaption>
 </figure>
-<figure>
-<h2>A function changed the charge for the same ten results</h2>
-<ve-bars max="5" label="Measured query charges in RU: indexed status equality 3.16; LOWER(status) equality 4.70"><ve-bar value="3.16">Equality</ve-bar><ve-bar value="4.7" hot>LOWER()</ve-bar></ve-bars>
-<figcaption><span class="fig-n">Fig. 3</span>Within one customer partition, status equality cost 3.16 RU and LOWER(status) cost 4.70 RU; both retrieved ten documents.</figcaption>
-</figure>
-<figure>
-<h2>Smaller pages added requests for the same twenty results</h2>
-<ve-bars max="55" label="Measured total query charges in RU: max 100 items per page 3.29; max 5 items 11.38; max 1 item 54.50"><ve-bar value="3.29">Max 100</ve-bar><ve-bar value="11.38">Max 5</ve-bar><ve-bar value="54.5" hot>Max 1</ve-bar></ve-bars>
-<figcaption><span class="fig-n">Fig. 4</span>One response cost 3.29 RU, four responses cost 11.38 RU, and twenty responses cost 54.50 RU for the same query and items.</figcaption>
-</figure>
-<figure>
-<h2>Fan-out adds partition work; this drawing is unmeasured</h2>
-<div class="frame"><svg class="ve-svg" viewBox="0 0 760 310" role="img" aria-label="One-customer query searches partition A. All-customer query searches A, B and C, then merges results. Each partition performs index and document work.">
-<path class="ve-e" d="M200 70H485"/><text class="ve-el" x="340" y="54">route one customer</text>
-<path class="ve-e is-hot" d="M200 230H350V120H485"/>
-<path class="ve-e is-hot" d="M350 230V185H485"/>
-<path class="ve-e is-hot" d="M350 230V260H485"/>
-<text class="ve-el" x="342" y="211">fan out</text>
-<g class="ve-n"><rect class="sh" x="15" y="30" width="185" height="80"/><text x="107" y="60">One customer</text><text class="sub" x="107" y="85">customerId + status</text></g>
-<g class="ve-n is-key"><rect class="sh" x="15" y="195" width="185" height="80"/><text x="107" y="225">All customers</text><text class="sub" x="107" y="250">status = "open"</text></g>
-<g class="ve-n"><rect class="sh" x="485" y="30" width="260" height="105"/><text x="615" y="60">Physical partition A</text><text class="sub" x="615" y="90">seek index → load matches</text><text class="sub" x="615" y="115">includes customer-42</text></g>
-<g class="ve-n"><rect class="sh" x="485" y="155" width="260" height="60"/><text x="615" y="174">Physical partition B</text><text class="sub" x="615" y="198">seek index → load matches</text></g>
-<g class="ve-n"><rect class="sh" x="485" y="235" width="260" height="60"/><text x="615" y="254">Physical partition C</text><text class="sub" x="615" y="278">seek index → load matches</text></g>
-</svg></div>
-<figcaption><span class="fig-n">Fig. 5</span>Across three physical partitions, Cosmos DB performs local query work three times and merges the results.</figcaption>
-</figure>
-<p>Three partitions do not imply three times the total RUs. The small-container test cost 3.31 RU with an explicit customer scope and 3.19 RU without it, for the same ten results. That test does not measure multi-physical-partition fan-out.</p>
-<p>To compare: fix the data, indexing, consistency and page settings; run each query to completion; sum its response charges. Check retrieved versus returned document counts to spot excess loading.</p>
-<section class="sources" aria-label="Sources"><p><a href="measurements-2026-11-04.json">Live measurements and collection notes</a> · West Europe, azure-cosmos 4.14.2, Session consistency, 4 November 2026. The response charges match across the tested paid manual, free-tier manual and serverless modes. The fan-out diagram is conceptual.</p><p><a href="https://devblogs.microsoft.com/cosmosdb/point-reads-versus-queries/">Microsoft: Point reads versus queries</a> · <a href="https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/query-metrics">Query metrics</a>.</p></section>
+<section class="sources" aria-label="Sources"><p><a href="https://devblogs.microsoft.com/cosmosdb/point-reads-versus-queries/">Microsoft: Point reads versus queries</a>.</p></section>
 </main><script type="module">/* COSMOS_RUNTIME */</script></body>
 </html>

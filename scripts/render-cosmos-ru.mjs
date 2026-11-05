@@ -16,7 +16,7 @@ const hash = createHash("sha256").update(runtime).digest("base64");
 const policy = `default-src 'none'; script-src 'sha256-${hash}'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'`;
 await mkdir(staging, { recursive: true });
 
-for (const name of ["write-cost", "query-cost", "workload-budget"]) {
+for (const name of ["data-layout", "query-cost", "query-fanout", "write-cost", "workload-budget"]) {
   const source = (await readFile(join(sources, `${name}.src.html`), "utf8"))
     .replace("/* COSMOS_STYLE */", css).replace("/* COSMOS_RUNTIME */", runtime);
   const staged = join(staging, `cosmos-ru-${name}.src.html`);

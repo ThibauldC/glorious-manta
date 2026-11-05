@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-register="paper">
+<head>
+<title>Customer keys group orders; Cosmos DB places those groups</title>
+<link rel="stylesheet" href="kit.css" data-ve-kit>
+<style>/* COSMOS_STYLE */</style>
+</head>
+<body><main>
+<header><p class="eyebrow">Container: orders · partition key: /customerId</p><h1>Customer keys group orders</h1></header>
+<figure>
+<div class="frame"><svg class="ve-svg" viewBox="0 0 760 460" role="img" aria-label="The orders container has two example physical partitions. Partition A contains logical partitions customer-42 and customer-17. Partition B contains customer-99. Each physical partition stores its own items and index. Cosmos DB chooses the physical placement.">
+<rect class="ve-bnd" x="15" y="15" width="355" height="425"/><text class="ve-bnd-t" x="35" y="42">Physical partition A</text>
+<rect class="ve-bnd" x="390" y="15" width="355" height="425"/><text class="ve-bnd-t" x="410" y="42">Physical partition B</text>
+<g class="ve-n is-key"><rect class="sh" x="35" y="75" width="315" height="110"/><text x="192" y="100">customer-42</text><text class="sub" x="192" y="127">Logical partition</text><text class="sub" x="192" y="156">order-123 · order-124</text></g>
+<g class="ve-n"><rect class="sh" x="35" y="225" width="315" height="85"/><text x="192" y="252">customer-17</text><text class="sub" x="192" y="282">order-125</text></g>
+<g class="ve-n"><rect class="sh" x="410" y="75" width="315" height="110"/><text x="567" y="100">customer-99</text><text class="sub" x="567" y="127">Logical partition</text><text class="sub" x="567" y="156">order-126</text></g>
+<g class="ve-n"><rect class="sh" x="35" y="350" width="315" height="70"/><text x="192" y="371">Local index: status = open</text><text class="sub" x="192" y="398">finds order-123 and order-125</text></g>
+<g class="ve-n"><rect class="sh" x="410" y="350" width="315" height="70"/><text x="567" y="371">Local index: status = open</text><text class="sub" x="567" y="398">finds order-126</text></g>
+</svg></div>
+<figcaption><span class="fig-n">Fig. 1</span>Items with the same customerId form one logical partition; Cosmos DB maps whole logical partitions onto physical partitions with local indexes.</figcaption>
+</figure>
+<p>This placement is illustrative, not a hashing rule. A small container may put all three customers on one physical partition.</p>
+<section class="sources" aria-label="Sources"><p><a href="https://learn.microsoft.com/en-us/azure/cosmos-db/partitioning-overview">Partitioning and horizontal scaling</a> · <a href="https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-query-container">Each physical partition has its own index</a>.</p></section>
+</main><script type="module">/* COSMOS_RUNTIME */</script></body>
+</html>

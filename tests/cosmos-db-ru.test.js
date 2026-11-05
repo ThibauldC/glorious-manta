@@ -100,25 +100,38 @@ test("West Europe monthly costs match the article", () => {
   assert.equal((manual / 0.305 / (490 * 3600 / 1e6)).toFixed(1), "108.5");
 });
 
-test("article explains operations before measurement and keeps supporting detail in the appendix", () => {
+test("article introduces data layout and RU metering before request factors and provisioning", () => {
   const headings = [...article.matchAll(/^## (.+)$/gm)].map(match => match[1]);
   assert.deepEqual(headings, [
-    "1. Understand RU, RU/s and cost",
-    "2. Understand what determines an operation's charge",
-    "3. Measure the complete operation",
-    "4. Turn measurements into throughput requirements",
-    "5. Translate the workload into a bill",
-    "6. Apply this to your workload",
+    "1. How data is laid out in Cosmos DB",
+    "2. What is an RU, and how is it calculated?",
+    "3. What affects the charge of a request?",
+    "4. How much throughput should you provision?",
+    "5. How does that capacity become a bill?",
+    "Start with the workload, then validate the provisioned capacity",
     "Appendix: examples and test notes",
     "Sources",
   ]);
   assert.match(article, /^title: Understanding Azure Cosmos DB Request Units$/m);
   const [main, appendix] = article.split("## Appendix: examples and test notes");
-  assert.equal((main.match(/```python\n/g) || []).length, 1);
-  assert.equal((appendix.match(/```python\n/g) || []).length, 4);
+  assert.equal((main.match(/```python\n/g) || []).length, 0);
+  assert.equal((appendix.match(/```python\n/g) || []).length, 5);
   assert(!main.includes("measurements-2026-11-04.json"));
   assert(appendix.includes("measurements-2026-11-04.json"));
-  assert(main.indexOf("### How throughput divides across partitions") < main.indexOf("### Why a hot partition"));
+  assert(main.includes("**deterministic**"));
+  assert(main.includes("does **not** provide a universal formula"));
+  assert(main.includes("**Yes, consistency affects the RU charge.**"));
+  assert(main.includes("same write operation stays unchanged"));
+  const layout = main.slice(main.indexOf("## 1."), main.indexOf("## 2."));
+  const pointReads = main.slice(main.indexOf("### Point reads:"), main.indexOf("### SQL queries:"));
+  const queries = main.slice(main.indexOf("### SQL queries:"), main.indexOf("### Writes:"));
+  assert(layout.includes("/visuals/cosmos-db-ru/data-layout.html"));
+  assert(pointReads.includes("/visuals/cosmos-db-ru/query-cost.html"));
+  assert(queries.includes("/visuals/cosmos-db-ru/query-fanout.html"));
+  for (const heading of ["Partition scope:", "Filter expression:", "Projection:", "Result count:"]) {
+    assert(queries.includes(`#### ${heading}`));
+  }
+  assert(!article.includes("/visuals/cosmos-db-ru/write-cost.html"));
 });
 
 test("hot-partition example exceeds local capacity despite spare total throughput", () => {
@@ -192,7 +205,7 @@ test("live response evidence supports the article comparisons and confirms clean
 });
 
 test("public exports have only local controls, a matching CSP, and no network dependencies", async () => {
-  for (const name of ["write-cost", "query-cost", "workload-budget"]) {
+  for (const name of ["data-layout", "query-cost", "query-fanout", "write-cost", "workload-budget"]) {
     const html = await readFile(new URL(`../public/visuals/cosmos-db-ru/${name}.html`, import.meta.url), "utf8");
     const content = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/g, "");
     assert.match(html, /data-register="(?:paper|instrument)"/);
@@ -206,7 +219,10 @@ test("public exports have only local controls, a matching CSP, and no network de
     assert(html.includes("connect-src 'none'"));
     assert.match(html, /prefers-reduced-motion: reduce/);
     assert.equal((content.match(/<figure\b/g) || []).length, (content.match(/<figcaption>/g) || []).length);
-    assert(article.includes(`/visuals/cosmos-db-ru/${name}.html`));
+    if (name !== "write-cost") assert(article.includes(`/visuals/cosmos-db-ru/${name}.html`));
+    if (["data-layout", "query-cost", "query-fanout"].includes(name)) {
+      assert.equal((content.match(/<figure\b/g) || []).length, 1);
+    }
   }
   assert.doesNotMatch(article, /hot-partition\.html|```csharp|\.NET|Move the slider|—/);
 });
