@@ -100,6 +100,38 @@ test("West Europe monthly costs match the article", () => {
   assert.equal((manual / 0.305 / (490 * 3600 / 1e6)).toFixed(1), "108.5");
 });
 
+test("article explains operations before measurement and keeps supporting detail in the appendix", () => {
+  const headings = [...article.matchAll(/^## (.+)$/gm)].map(match => match[1]);
+  assert.deepEqual(headings, [
+    "1. Understand RU, RU/s and cost",
+    "2. Understand what determines an operation's charge",
+    "3. Measure the complete operation",
+    "4. Turn measurements into throughput requirements",
+    "5. Translate the workload into a bill",
+    "6. Apply this to your workload",
+    "Appendix: examples and test notes",
+    "Sources",
+  ]);
+  assert.match(article, /^title: Understanding Azure Cosmos DB Request Units$/m);
+  const [main, appendix] = article.split("## Appendix: examples and test notes");
+  assert.equal((main.match(/```python\n/g) || []).length, 1);
+  assert.equal((appendix.match(/```python\n/g) || []).length, 4);
+  assert(!main.includes("measurements-2026-11-04.json"));
+  assert(appendix.includes("measurements-2026-11-04.json"));
+  assert(main.indexOf("### How throughput divides across partitions") < main.indexOf("### Why a hot partition"));
+});
+
+test("hot-partition example exceeds local capacity despite spare total throughput", () => {
+  const capacity = 1200;
+  const demand = [700, 100, 100];
+  const perPartition = capacity / demand.length;
+  assert.equal(perPartition, 400);
+  assert(demand[0] > perPartition);
+  assert(demand.reduce((sum, ru) => sum + ru, 0) < capacity);
+  assert(article.includes("| A | 400 RU/s | 700 RU/s |"));
+  assert(article.includes("| **Total** | **1,200 RU/s** | **900 RU/s** |"));
+});
+
 test("article Python examples run against a paged test double", () => {
   const result = spawnSync("python3", ["tests/cosmos-db-ru-examples.py"], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr || result.error?.message);

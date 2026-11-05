@@ -95,10 +95,12 @@ with patch.dict(sys.modules, {"azure": ModuleType("azure"), "azure.cosmos": cosm
     for index, block in enumerate(blocks):
         ast.parse(block)
         exec(block, scope)
-        if index in (1, 2):
+        if index in (0, 2):
             # Include the empty middle response; do not stop at it or count only the last page.
             assert scope["charges"] == [3.2, 4.1, 2.7]
             assert sum(scope["charges"]) == 10
+        if index == 1:
+            assert scope["charges"] == [1]
         if index == 3:
             assert scope["next_token"] == "page-1"
             assert len(scope["items"]) == 1
