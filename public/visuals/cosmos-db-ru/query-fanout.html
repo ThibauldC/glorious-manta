@@ -391,7 +391,6 @@ input:invalid { border-color: var(--risk); }
     <pattern id="ve-w-off" width="10" height="10" patternUnits="userSpaceOnUse"><rect x="1.5" y="1.5" width="7" height="7" rx="1.5" style="fill:none;stroke:var(--text-dim)"/></pattern>
   </defs>
 </svg><main>
-<header><p class="eyebrow">Query scope</p><h1>All-customer SQL fans out</h1></header>
 <figure>
 <div class="frame"><svg class="ve-svg" viewBox="0 0 760 310" role="img" aria-label="A query scoped to customer-42 searches physical partition A. A query for all customers searches the local indexes on A, B and C, then Cosmos DB combines the results.">
 <path class="ve-e" d="M200 70H485"/><text class="ve-el" x="340" y="54">route one customer</text>
@@ -405,10 +404,7 @@ input:invalid { border-color: var(--risk); }
 <g class="ve-n"><rect class="sh" x="485" y="155" width="260" height="60"/><text x="615" y="174">Physical partition B</text><text class="sub" x="615" y="198">seek index → load matches</text></g>
 <g class="ve-n"><rect class="sh" x="485" y="235" width="260" height="60"/><text x="615" y="254">Physical partition C</text><text class="sub" x="615" y="278">seek index → load matches</text></g>
 </svg></div>
-<figcaption><span class="fig-n">Fig. 1</span>Without a partition-key scope, Cosmos DB runs local query work across physical partitions and combines the results.</figcaption>
 </figure>
-<p>Conceptual example, not a measured RU multiplier. Three physical partitions do not imply three times the total query charge.</p>
-<section class="sources" aria-label="Sources"><p><a href="https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-query-container">Microsoft: In-partition and cross-partition queries</a>.</p></section>
 </main><script type="module">
 export function calculateWorkload({ reads, readRu, writes, writeRu, queries, queryRu, capacity, multiplier = 1 }) {
   if (![reads, readRu, writes, writeRu, queries, queryRu].every(value => Number.isFinite(value) && value >= 0)

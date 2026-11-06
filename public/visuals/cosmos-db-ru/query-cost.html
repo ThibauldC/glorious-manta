@@ -391,7 +391,6 @@ input:invalid { border-color: var(--risk); }
     <pattern id="ve-w-off" width="10" height="10" patternUnits="userSpaceOnUse"><rect x="1.5" y="1.5" width="7" height="7" rx="1.5" style="fill:none;stroke:var(--text-dim)"/></pattern>
   </defs>
 </svg><main>
-<header><p class="eyebrow">Point read versus SQL</p><h1>SQL adds query work</h1></header>
 <figure>
 <div class="frame"><svg class="ve-svg" viewBox="0 0 760 330" role="img" aria-label="A point read fetches by ID and partition key. Scoped SQL adds a query engine and index lookup before loading the item.">
 <path class="ve-e" d="M185 65H550"/><text class="ve-el" x="325" y="49">fetch by address</text>
@@ -404,9 +403,7 @@ input:invalid { border-color: var(--risk); }
 <g class="ve-n is-key"><rect class="sh" x="250" y="195" width="170" height="80"/><text x="335" y="225">Query engine</text><text class="sub" x="335" y="250">filter</text></g>
 <g class="ve-n"><rect class="sh" x="490" y="195" width="170" height="80"/><text x="575" y="225">Index</text><text class="sub" x="575" y="250">find candidate</text></g>
 </svg></div>
-<figcaption><span class="fig-n">Fig. 1</span>A partition-key filter scopes SQL to one logical partition, but Cosmos DB still runs the query engine before loading the item.</figcaption>
 </figure>
-<section class="sources" aria-label="Sources"><p><a href="https://devblogs.microsoft.com/cosmosdb/point-reads-versus-queries/">Microsoft: Point reads versus queries</a>.</p></section>
 </main><script type="module">
 export function calculateWorkload({ reads, readRu, writes, writeRu, queries, queryRu, capacity, multiplier = 1 }) {
   if (![reads, readRu, writes, writeRu, queries, queryRu].every(value => Number.isFinite(value) && value >= 0)

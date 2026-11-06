@@ -124,7 +124,7 @@ test("article builds a provisioning budget before explaining costs and keeps exp
   assert(main.includes("Strong and bounded-staleness reads consult two replicas"));
   assert(main.includes("same write operation stays unchanged"));
   assert(main.indexOf("**490 RU/s**") < main.indexOf("## 2."));
-  for (const charge of ["4.70 RU", "3.28 RU", "2.89 RU", "3.31 RU", "3.19 RU", "11.70 RU", "54.50 RU"]) {
+  for (const charge of ["54.50 RU"]) {
     assert(!main.includes(charge), `Keep the detailed experiment result in the appendix: ${charge}`);
     assert(appendix.includes(charge));
   }
@@ -224,10 +224,13 @@ test("public exports have only local controls, a matching CSP, and no network de
     assert(html.includes(`script-src 'sha256-${hash}';`));
     assert(html.includes("connect-src 'none'"));
     assert.match(html, /prefers-reduced-motion: reduce/);
-    assert.equal((content.match(/<figure\b/g) || []).length, (content.match(/<figcaption>/g) || []).length);
     if (name !== "write-cost") assert(article.includes(`/visuals/cosmos-db-ru/${name}.html`));
     if (["data-layout", "query-cost", "query-fanout"].includes(name)) {
       assert.equal((content.match(/<figure\b/g) || []).length, 1);
+      assert.doesNotMatch(content, /<header>|<figcaption>|<section\b|<p>/);
+      assert.match(content, /<svg[^>]+aria-label=/);
+    } else {
+      assert.equal((content.match(/<figure\b/g) || []).length, (content.match(/<figcaption>/g) || []).length);
     }
   }
   assert.doesNotMatch(article, /hot-partition\.html|```csharp|\.NET|Move the slider|—/);

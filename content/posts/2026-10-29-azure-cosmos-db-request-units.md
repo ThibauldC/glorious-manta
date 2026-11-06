@@ -13,7 +13,7 @@ We will size an example shop workload: 200 order lookups, 20 creates and 10 quer
 
 ## Understand the capacity you are buying
 
-A **Request Unit (RU)** measures the CPU, memory and I/O work Cosmos DB performs for an operation. Microsoft defines **1 RU** using a point read of an approximately **1 KB item** by ID and partition key, with session or eventual consistency.
+A **Request Unit (RU)** measures the CPU, memory and I/O work Cosmos DB performs for an operation. A **point read** fetches one item by its ID and partition key. **Read consistency** describes which version of data a read is guaranteed to see after a write. Microsoft defines **1 RU** using a point read of an approximately **1 KB item** with session or eventual consistency; we explain consistency choices below.
 
 Different operations consume different amounts of work. If an operation costs 5 RU and runs 100 times per second, it needs **500 RU/s**. Provisioning more RU/s lets you perform more work each second; it does not reduce that operation's charge.
 
@@ -40,13 +40,13 @@ Choose a **partition-key path** when creating the container. With `/customerId`,
 
 Cosmos DB maps those groups onto **physical partitions**. Several customers can share one physical partition; a small container may put all customers on one. Cosmos DB manages placement and physical partition splits as storage or throughput requirements grow.
 
-<iframe src="/visuals/cosmos-db-ru/data-layout.html" title="Orders grouped by customer into logical partitions, placed on physical partitions with local indexes" width="100%" height="760" loading="lazy"></iframe>
-
-[Open the data-layout diagram](/visuals/cosmos-db-ru/data-layout.html).
+<iframe src="/visuals/cosmos-db-ru/data-layout.html" title="Orders grouped by customer into logical partitions, placed on physical partitions with local indexes" width="100%" height="580" loading="lazy"></iframe>
 
 By default, Cosmos DB indexes item properties and maintains the index during writes. An index entry for `/status = "open"` helps find open orders without reading every document. Each physical partition has its own index, so a query across customers may need to search several local indexes.
 
-The container's **indexing policy** controls indexed paths. More indexing adds write work and storage, but can reduce query work. Some patterns, such as sorting on multiple properties, need additional indexes. Choose the partition key and indexes around the operations you expect to run.
+The container's **indexing policy** controls which property paths Cosmos DB indexes. More indexing adds write work and storage, but can reduce query work. Some patterns, such as sorting on multiple properties, need additional indexes.
+
+You can change the policy after creating the container. In the Azure portal, open **Data Explorer → your database → your container → Settings → Indexing Policy**, edit the JSON and save it; you can also use an SDK or infrastructure tools. Cosmos DB transforms the index in the background while the container remains available. Monitor the transformation and allow time and spare throughput for it. When replacing an index, add the new one and wait for the transformation to finish before removing the old one. Test affected queries before excluding paths. See [how to manage an indexing policy](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/how-to-manage-indexing-policy).
 
 ## 1. Build a first throughput budget
 
@@ -71,7 +71,9 @@ Include background jobs and other applications sharing the throughput. Use peak 
 
 ### Choose the read guarantee before estimating charges
 
-Consistency affects the work needed to serve reads:
+Cosmos DB keeps replicas of your data. After a write, those copies may not all reflect the change at the same instant. **Read consistency** describes what a client is guaranteed to see when it reads: for example, the latest committed value, or a value that may lag behind. Stronger guarantees can require more work. You set a default on the account; a client can request a weaker level. The example uses session consistency.
+
+Cosmos DB offers five levels; these three illustrate the effect on read charges:
 
 | Consistency | Guarantee | Read RU budget |
 |---|---|---:|
@@ -87,21 +89,32 @@ For your application, benchmark with the consistency you intend to deploy. Do no
 
 ## 2. Estimate the cost of each application operation
 
-The first budget uses assumed charges. Check each assumption against the access pattern you will deploy, then replace it with a measurement.
+The first budget uses assumed charges. Your application spends RUs when it asks Cosmos DB to read or change data. Common operations include:
+
+| Operation | What it does | Typical use |
+|---|---|---|
+| **Point read** | Fetches one item using its ID and partition-key value. | Open an order when you already know both values. |
+| **SQL query** | Searches items using a SQL-like expression; results may arrive in several responses. | List a customer's open orders or search across customers. |
+| **Create** | Adds an item. | Place an order. |
+| **Replace** | Replaces an existing item with a supplied document. | Save a complete edited order. |
+| **Patch** | Applies changes to selected properties of an existing item. | Update an order's status. |
+| **Delete** | Removes an item. | Delete an order. |
+
+These operations consume RUs even when they return no matching data or, in some cases, fail. Other work, such as stored procedures and triggers, can also consume RUs. Measure the operations your application actually runs, including background work and all query responses.
 
 ### Point reads: use the item's address when you have it
 
-For an order lookup, knowing `id` and `customerId` lets you use an SDK point read. A 1 KB point read cost **1 RU** in the tests. An SQL query for the same item cost **2.93 RU** because Cosmos DB also ran the query engine.
+A point read addresses one item directly; it is not a SQL query. For an order lookup, knowing `id` and `customerId` lets you use the SDK's read-item operation. If you do not know both, you generally need a query to find the item.
 
-<iframe src="/visuals/cosmos-db-ru/query-cost.html" title="A point read fetches directly while equivalent SQL uses the query engine and index" width="100%" height="620" loading="lazy"></iframe>
+In the benchmark, a 1 KB point read cost **1 RU**. An SQL query for the same item cost **2.93 RU** because Cosmos DB also ran the query engine.
 
-[Open the point-read versus SQL diagram](/visuals/cosmos-db-ru/query-cost.html).
+<iframe src="/visuals/cosmos-db-ru/query-cost.html" title="A point read fetches directly while equivalent SQL uses the query engine and index" width="100%" height="460" loading="lazy"></iframe>
 
 Count only eligible lookups as point reads. Item size also matters: Microsoft's reference value for a 100 KB point read is about 10 RU, not 100 RU. There is no “1 RU per KB” rule.
 
 ### SQL queries: define the query shape you will provision for
 
-For the list-orders endpoint, record four things before measuring.
+A NoSQL SQL query describes which items to find and which fields to return. Cosmos DB uses indexes where it can, loads matching items and returns results in one or more responses. The work depends on the query, data and indexes. For the list-orders endpoint, consider the following before measuring.
 
 #### Partition scope: one customer or all customers?
 
@@ -114,39 +127,41 @@ WHERE c.customerId = 'customer-42' AND c.status = 'open'
 SELECT c.id, c.total FROM c WHERE c.status = 'open'
 ```
 
-The first query targets one logical partition. The second can **fan out** across physical partitions, search their local indexes and combine the results. An index on `status` helps each search; it does not remove fan-out.
+With equality on the partition key, the first query can target one logical partition. You can also pass the key value as an SDK request option. The second query does not specify a customer, so it can **fan out**: Cosmos DB searches each relevant physical partition's local index and combines the results. An index on `status` helps each search; it does not remove fan-out. More physical partitions can mean more work even when few items match.
 
-<iframe src="/visuals/cosmos-db-ru/query-fanout.html" title="A customer-scoped query visits one physical partition; an all-customer query fans out across physical partitions" width="100%" height="660" loading="lazy"></iframe>
+<iframe src="/visuals/cosmos-db-ru/query-fanout.html" title="A customer-scoped query visits one physical partition; an all-customer query fans out across physical partitions" width="100%" height="440" loading="lazy"></iframe>
 
-[Open the query fan-out diagram](/visuals/cosmos-db-ru/query-fanout.html).
-
-Measure at the data scale you expect. A small container with one physical partition cannot demonstrate the cost of fan-out across several partitions. The diagram explains the mechanism, not a fixed RU multiplier.
+In the benchmark, the customer-scoped query cost 3.31 RU and the unscoped query cost 3.19 RU for the same ten results. The small container did not exercise multi-physical-partition fan-out, so those numbers do not show its cost. Measure at your expected data scale; the diagram explains the mechanism, not a fixed RU multiplier.
 
 #### Filter expression: can the query use the index efficiently?
 
-Filtering on `c.status = 'open'` and on `LOWER(c.status) = 'open'` can return the same items with different charges. Check **Query Stats** in Data Explorer for index use and documents retrieved versus returned. A higher charge alone does not prove a document scan.
+A filter is the `WHERE` condition that selects items. An indexed equality such as `c.status = 'open'` can narrow the candidates Cosmos DB loads. Expressions applied to a property can require different index work; support depends on the expression and indexing policy.
+
+In the benchmark, equality cost 3.16 RU and `LOWER(c.status) = 'open'` cost 4.70 RU for the same ten results. Both reported ten retrieved documents, so the higher charge alone does not prove a document scan. In Data Explorer, inspect **Query Stats** for index use and documents retrieved versus returned; measure your own expression.
 
 #### Projection: which fields does the caller need?
 
-Returning `id` and `total` instead of full documents reduces the payload, but Cosmos DB still has to find the matching items. Do not assume an equal percentage reduction in RUs.
+A projection is the list of fields after `SELECT`. Returning `id` and `total` instead of full documents reduces the response payload, but Cosmos DB still has to find the matching items. In the benchmark, the projected query cost 3.16 RU versus 3.28 RU for full documents. Do not assume an equal percentage reduction in RUs.
 
 #### Result count: what happens as the data grows?
 
-Test representative result sizes, including no matches. An empty result still costs work to establish that nothing matches. A query charge is not a fixed price per returned item.
+More matches can mean more items to load and return. Test representative result sizes, including no matches. In the benchmark, a query with no results still cost 2.89 RU: Cosmos DB had to establish that nothing matched. A query charge is not a fixed price per returned item.
 
 ### Writes: use the intended item shape and indexing policy
 
-Measure creates and updates separately. Cosmos DB stores the document and maintains its index entries; larger items and more indexed paths generally require more work.
+Create, replace, patch and delete change stored data. Cosmos DB also maintains affected index entries; larger items and more indexed paths generally require more work. Measure each operation separately with your actual item shape and policy.
 
 In one test, creating the same 1 KB item cost **15.38 RU with default indexing** and **7 RU with selected user paths indexed**. That shows why the indexing policy belongs in the capacity estimate. It does not make 7 RU a standard create price.
 
-Patch can reduce the payload and avoid a client-side read/modify/replace cycle, but it does not guarantee a lower RU charge than replace. Test affected queries before removing indexes.
+Patch can reduce the payload and avoid a client-side read/modify/replace cycle, but it does not guarantee a lower RU charge than replace. For two changes in the benchmark, patch cost 11.70 RU and replace cost 11.38 RU. Measure deletes too; the tests did not report a delete comparison.
 
 ### Pagination: budget for the pages the application fetches
 
-Include paging settings in the operation definition. For one query returning 20 orders, a single response cost **3.29 RU**; four smaller responses cost **11.38 RU** in total. Count all service responses involved, including empty ones.
+Cosmos DB can split query results into **pages**, each returned in a separate service response with its own charge. Page size is an upper limit, not a guarantee; the service can also return an empty page. Include paging settings in the operation definition and add the charges for all responses your application consumes.
 
-Use continuation tokens to resume a query. A growing `OFFSET` makes Cosmos DB process skipped items again. Continue while a token remains, even if a page is empty. For a user journey that stops after one page, budget that page rather than fetching the entire result set.
+For one benchmark query returning 20 orders, a single response cost **3.29 RU**; four smaller responses cost **11.38 RU** in total. Smaller pages can help an application return results incrementally, but extra responses may increase the total charge.
+
+A **continuation token** is a bookmark returned with a page that lets the SDK resume the query. Continue while a token remains, even if a page is empty. For a user journey that stops after one page, budget that page rather than fetching the entire result set. `OFFSET LIMIT` instead skips a specified number of results. A growing offset makes Cosmos DB process skipped items again: in the benchmark, offsets of 0 and 190 cost 2.93 and 7.47 RU respectively for five results.
 
 ### Replace assumptions with measured charges
 
@@ -177,7 +192,9 @@ For example, three physical partitions sharing 1,200 RU/s receive 400 RU/s each:
 
 A can throttle with **HTTP 429** even though total demand fits. One customer's logical partition stays on one physical partition; it cannot use spare capacity spread across the others.
 
-For `/customerId`, check whether your busiest customer could create this problem. Throughput redistribution and dynamic autoscale can change equal-allocation behavior, so verify your actual configuration. The small experiments in the appendix did not test hot-partition throttling.
+For `/customerId`, check whether your busiest customer could create this problem. Cosmos DB manages physical partition placement and measures RU consumption; you cannot assign a customer directly to a physical partition or choose how RUs are metered. You do control the partition key and total provisioned throughput. For supported provisioned accounts, [throughput redistribution](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/how-to-redistribute-throughput-across-partitions) can allocate capacity unevenly using Azure CLI or PowerShell; it is in preview and has configuration restrictions. Dynamic autoscale can also change per-partition scaling behavior. Neither makes a single logical partition span physical partitions.
+
+To check actual usage, open your Cosmos DB account in the Azure portal and go to **Insights → Throughput → Normalized RU Consumption (%) by PartitionKeyRangeID**; filter to the database and container. Each range corresponds to a physical partition. A range repeatedly near 100% while others are lower can indicate a hot partition. Check 429s and latency too: 100% alone does not establish a problem. See Microsoft's [monitoring guide](https://learn.microsoft.com/en-us/azure/cosmos-db/monitor-normalized-request-units). The small experiments in the appendix did not test hot-partition throttling.
 
 ## 4. Choose a throughput mode and starting capacity
 
